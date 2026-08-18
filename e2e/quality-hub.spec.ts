@@ -20,3 +20,13 @@ test('администратор входит и открывает основн
   }
   expect(consoleErrors).toEqual([]);
 });
+
+test('ограничивает повторные попытки входа', async ({ request }) => {
+  const statuses: number[] = [];
+  for (let attempt = 0; attempt < 9; attempt++) {
+    const response = await request.post('/api/auth/login', { data: { email: 'admin@example.com', password: 'Wrong123!' } });
+    statuses.push(response.status());
+    if (response.status() === 429) break;
+  }
+  expect(statuses).toContain(429);
+});

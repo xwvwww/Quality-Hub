@@ -1,12 +1,12 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshDto } from './dto';
 import { Public } from './public.decorator';
 import { JwtUser } from './auth.types';
 
-const attempts = new Map<string, { count: number; reset: number }>();
 const cookieName = 'quality_hub_refresh';
 
 @ApiTags('auth')
@@ -15,27 +15,17 @@ export class AuthController {
   constructor(private auth: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 8, ttl: 15 * 60_000 } })
   @Post('login')
   async login(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() dto: LoginDto) {
-    const key = req.ip || 'unknown';
-    const now = Date.now();
-    const entry = attempts.get(key);
-    if (entry && entry.reset > now && entry.count >= 8) throw new HttpException('Слишком много попыток входа. Повторите через 15 минут', HttpStatus.TOO_MANY_REQUESTS);
-    try {
-      const result = await this.auth.login(dto.email, dto.password);
-      attempts.delete(key);
-      this.setRefreshCookie(res, result.refreshToken);
-      const { refreshToken: _, ...safeResult } = result;
-      return safeResult;
-    } catch (error) {
-      const current = entry && entry.reset > now ? entry : { count: 0, reset: now + 15 * 60_000 };
-      current.count++;
-      attempts.set(key, current);
-      throw error;
-    }
+    const result = await this.auth.login(dto.email, dto.password);
+    this.setRefreshCookie(res, result.refreshToken);
+    const { refreshToken: _, ...safeResult } = result;
+    return safeResult;
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() dto: RefreshDto) {
     const raw = req.cookies?.[cookieName] ?? dto.refreshToken;

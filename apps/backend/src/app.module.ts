@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -23,5 +24,5 @@ import { ProfileModule } from './profile/profile.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
 
-@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, UsersModule, OrganizationsModule, ProjectsModule, TestCasesModule, TestPlansModule, TestRunsModule, DefectsModule, ReportsModule, RequirementsModule, PlanReportsModule, ImportsModule, AnalyticsModule, AutomationModule, ProfileModule, WorkspaceModule, CollaborationModule], providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: RolesGuard }] })
+@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]), PrismaModule, AuthModule, UsersModule, OrganizationsModule, ProjectsModule, TestCasesModule, TestPlansModule, TestRunsModule, DefectsModule, ReportsModule, RequirementsModule, PlanReportsModule, ImportsModule, AnalyticsModule, AutomationModule, ProfileModule, WorkspaceModule, CollaborationModule], providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }, { provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: RolesGuard }] })
 export class AppModule {}
