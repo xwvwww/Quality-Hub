@@ -25,6 +25,16 @@ export class AuthService {
     return this.issue(user.id, user.email, membership.organizationId, membership.role);
   }
 
+  async requestPasswordReset(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, email: true, memberships: { select: { organizationId: true } } } });
+    if (user) {
+      const organizationIds = user.memberships.map(item => item.organizationId);
+      const admins = await this.prisma.organizationMember.findMany({ where: { organizationId: { in: organizationIds }, role: MembershipRole.ADMIN, user: { isActive: true } }, select: { userId: true } });
+      if (admins.length) await this.prisma.notification.createMany({ data: admins.map(admin => ({ userId: admin.userId, title: 'Запрос на сброс пароля', body: `Пользователь ${user.email} запросил восстановление доступа.`, url: '/administration' })) });
+    }
+    return { success: true, message: 'Если аккаунт существует, администратор получил запрос.' };
+  }
+
   async refresh(raw: string) {
     let payload: { sub: string; familyId: string };
     try {
@@ -49,6 +59,12 @@ export class AuthService {
   async logout(raw?: string) {
     if (raw) await this.prisma.refreshToken.updateMany({ where: { tokenHash: this.hash(raw), revokedAt: null }, data: { revokedAt: new Date() } });
     return { success: true };
+  }
+
+  async currentSession(raw?: string) {
+    if (!raw) return { id: null };
+    const item = await this.prisma.refreshToken.findUnique({ where: { tokenHash: this.hash(raw) }, select: { id: true, revokedAt: true, expiresAt: true } });
+    return { id: item && !item.revokedAt && item.expiresAt > new Date() ? item.id : null };
   }
 
   private async issue(sub: string, email: string, organizationId: string, role: MembershipRole, familyId: string = randomUUID()) {

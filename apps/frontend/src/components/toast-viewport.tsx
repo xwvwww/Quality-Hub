@@ -26,7 +26,7 @@ export function ToastViewport() {
     return () => window.removeEventListener('quality-hub-toast', handleToast);
   }, []);
 
-  return <div className="fixed right-6 bottom-6 z-[100] space-y-2 w-96 max-w-[90vw]">
+  return <div className="fixed right-6 top-20 z-[100] space-y-2 w-96 max-w-[90vw]">
     {items.map((toast) => <div className={`card p-4 flex gap-3 items-start shadow-2xl border-l-4 ${toast.kind === 'error' ? 'border-l-red-500' : 'border-l-green-500'}`} key={toast.id}>
       {toast.kind === 'error' ? <AlertCircle className="text-red-500 shrink-0" /> : <CheckCircle2 className="text-green-500 shrink-0" />}
       <p className="text-sm m-0 flex-1">{toast.message}</p>

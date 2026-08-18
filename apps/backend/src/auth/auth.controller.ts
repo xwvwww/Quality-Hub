@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshDto } from './dto';
+import { ForgotPasswordDto, LoginDto, RefreshDto } from './dto';
 import { Public } from './public.decorator';
 import { JwtUser } from './auth.types';
 
@@ -23,6 +23,11 @@ export class AuthController {
     const { refreshToken: _, ...safeResult } = result;
     return safeResult;
   }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 15 * 60_000 } })
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) { return this.auth.requestPasswordReset(dto.email); }
 
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -45,6 +50,9 @@ export class AuthController {
 
   @Get('me')
   me(@Req() req: Request & { user: JwtUser }) { return req.user; }
+
+  @Get('current-session')
+  currentSession(@Req() req: Request) { return this.auth.currentSession(req.cookies?.[cookieName]); }
 
   private setRefreshCookie(res: Response, value: string) {
     const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7);

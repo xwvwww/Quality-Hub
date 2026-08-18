@@ -9,6 +9,11 @@ export class LoginDto {
   password!: string;
 }
 
+export class ForgotPasswordDto {
+  @IsEmail({}, { message: 'Введите корректный email' })
+  email!: string;
+}
+
 export class RefreshDto {
   @IsOptional()
   @IsString()
