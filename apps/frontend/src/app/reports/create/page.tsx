@@ -18,14 +18,14 @@ export default function CreateReport() {
   const queue = async () => {
     setLoading(true); setError('');
     try {
-      await api('/reports/generated', { method: 'POST', body: JSON.stringify({ testPlanId: selected, format, includeAttachments: false }) });
+      await api('/reports/generated', { method: 'POST', body: JSON.stringify({ testPlanId: selected, format, includeAttachments: true }) });
       router.push('/reports/generated');
     } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось создать отчёт'); setLoading(false); }
   };
   return <AppShell><main className="p-7 max-w-3xl mx-auto">
     <button className="icon-btn mb-5" onClick={() => router.push('/reports')}><ArrowLeft /></button>
     <section className="card glow-card p-8"><FileText size={38} className="text-brand"/><h1>Создать отчёт</h1>
-      <p className="text-muted">Интерактивный отчёт откроется сразу, а фоновый соберёт PDF или JSON даже для 700+ кейсов.</p>
+      <p className="text-muted">Интерактивный отчёт откроется сразу, а фоновый соберёт такой же подробный PDF с метриками, шагами и вложениями.</p>
       {error && <p className="p-3 bg-red-50 text-red-700 rounded">{error}</p>}
       <label className="font-semibold text-sm block mb-2 mt-6">Тест-план</label>
       <select className="field" value={selected} onChange={(e) => setSelected(e.target.value)}><option value="">Выберите тест-план</option>{plans.map((p) => <option value={p.id} key={p.id}>{p.project.code} · {p.name} · {p._count.cases} кейсов</option>)}</select>

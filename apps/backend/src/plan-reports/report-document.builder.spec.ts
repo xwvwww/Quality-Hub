@@ -8,7 +8,8 @@ describe('ReportDocumentBuilder', () => {
       cases: [{
         displayId: 'SKZ-TC-0001', title: 'Вход в систему', status: 'PASSED', priority: 'HIGH',
         actualDuration: 55, estimatedDuration: 60, description: 'Проверка входа', actualResult: 'Вход выполнен',
-        steps: [{ position: 0, action: 'Ввести email', expectedResult: 'Поле заполнено' }], defects: [],
+        steps: [{ position: 0, section: 'ACTION', action: 'Ввести email', expectedResult: 'Поле заполнено' }], defects: [],
+        attachments: [{ fileName: 'evidence.png', dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' }],
       }],
     };
     const result = await new ReportDocumentBuilder().pdf(snapshot as never);
