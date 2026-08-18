@@ -16,10 +16,10 @@ export class ProjectsController {
   constructor(private projects: ProjectsService) {}
 
   @Get()
-  list(@Req() req: AuthRequest, @Query() query: ProjectQueryDto) { return this.projects.list(req.user.organizationId, query); }
+  list(@Req() req: AuthRequest, @Query() query: ProjectQueryDto) { return this.projects.list(req.user.organizationId, req.user.sub, req.user.role, query); }
 
   @Get(':id')
-  get(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.get(req.user.organizationId, id); }
+  get(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.get(req.user.organizationId, id, req.user.sub, req.user.role); }
 
   @Post()
   @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD)
@@ -27,13 +27,13 @@ export class ProjectsController {
 
   @Patch(':id')
   @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD)
-  update(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProjectDto) { return this.projects.update(req.user.organizationId, id, dto); }
+  update(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProjectDto) { return this.projects.update(req.user.organizationId, id, dto, req.user.sub, req.user.role); }
 
   @Post(':id/archive')
   @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD)
-  archive(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.archive(req.user.organizationId, id); }
+  archive(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.archive(req.user.organizationId, id, req.user.sub, req.user.role); }
 
   @Delete(':id')
   @Roles(MembershipRole.ADMIN)
-  remove(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.remove(req.user.organizationId, id); }
+  remove(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.projects.remove(req.user.organizationId, id, req.user.sub, req.user.role); }
 }

@@ -1,11 +1,12 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { TestCasesService } from './test-cases.service';
+import { MembershipRole } from '@prisma/client';
 
 describe('TestCasesService', () => {
   it('rejects repository access to a project from another tenant', async () => {
     const prisma = { project: { findFirst: jest.fn().mockResolvedValue(null) } } as any;
     const service = new TestCasesService(prisma);
-    await expect(service.folders('org-a', 'project-b')).rejects.toThrow(NotFoundException);
+    await expect(service.folders('org-a', 'project-b', 'admin-a', MembershipRole.ADMIN)).rejects.toThrow(NotFoundException);
     expect(prisma.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'project-b', organizationId: 'org-a' } }));
   });
 
@@ -16,7 +17,7 @@ describe('TestCasesService', () => {
       testCase: { count: jest.fn().mockResolvedValue(0) },
     } as any;
     const service = new TestCasesService(prisma);
-    await expect(service.deleteFolder('org-a', 'project-a', 'folder-a')).rejects.toThrow(ConflictException);
+    await expect(service.deleteFolder('org-a', 'project-a', 'admin-a', MembershipRole.ADMIN, 'folder-a')).rejects.toThrow(ConflictException);
     expect(prisma.testCaseFolder.delete).not.toHaveBeenCalled();
   });
 
@@ -27,7 +28,7 @@ describe('TestCasesService', () => {
       $transaction: jest.fn().mockResolvedValue([[{ id: 'case-a', caseNumber: 42 }], 1]),
     } as any;
     const service = new TestCasesService(prisma);
-    const result = await service.list('org-a', 'project-a', { page: 1, pageSize: 20, includeNested: false });
+    const result = await service.list('org-a', 'project-a', 'admin-a', MembershipRole.ADMIN, { page: 1, pageSize: 20, includeNested: false });
     expect(result.items[0].displayId).toBe('SKZ-TC-0042');
   });
 });

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Bug, ClipboardCheck, FileText, FolderKanban, Gauge, LayoutDashboard, LogOut, Moon, PlayCircle, Plug, Settings, ShieldCheck, Sun, Users } from 'lucide-react';
+import { BarChart3, ClipboardCheck, FileText, FolderKanban, Gauge, LayoutDashboard, LogOut, Moon, PlayCircle, Plug, Settings, ShieldCheck, Sun, UserRoundCog, Users } from 'lucide-react';
 import { api, apiBlob, session } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { WorkspaceTools } from './workspace-tools';
@@ -12,7 +12,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router=useRouter(),path=usePathname(),{t}=useI18n();
   const[hydrated,setHydrated]=useState(false),[dark,setDark]=useState(false),[avatar,setAvatar]=useState('');
   const[profile,setProfile]=useState<{firstName:string;lastName:string;avatarUrl:string|null}|null>(null);
-  const items=[[LayoutDashboard,t.overview,'/dashboard'],[FolderKanban,t.projects,'/projects'],[ClipboardCheck,t.cases,'/test-cases'],[FileText,t.plans,'/test-plans'],[PlayCircle,t.runs,'/test-runs'],[Bug,t.defects,'/defects'],[ShieldCheck,t.requirements,'/requirements'],[BarChart3,t.reports,'/reports'],[Gauge,t.analytics,'/analytics'],[Plug,t.integrations,'/integrations'],[Users,t.admin,'/administration']] as const;
+  const role=session.get()?.user.role;
+  const workspaceItems=[[FolderKanban,t.projects,'/projects'],[ClipboardCheck,t.cases,'/test-cases'],[FileText,t.plans,'/test-plans'],[PlayCircle,t.runs,'/test-runs'],[Plug,t.integrations,'/integrations']] as const;
+  const items=[[LayoutDashboard,t.overview,'/dashboard'],...(role==='ADMIN'?[]:workspaceItems),[UserRoundCog,'Комана','/teams'],[BarChart3,t.reports,'/reports'],[Gauge,t.analytics,'/analytics'],...(role==='ADMIN'?[[Users,t.admin,'/administration'] as const]:[])] as const;
   useEffect(()=>{setHydrated(true);if(!session.get())router.replace('/');setDark(localStorage.getItem('quality-hub-theme')==='dark');api<{firstName:string;lastName:string;avatarUrl:string|null}>('/profile').then(setProfile).catch(()=>undefined);['/dashboard','/projects','/test-cases','/test-plans','/test-runs','/defects','/requirements','/reports','/analytics','/integrations','/administration','/profile','/profile/settings'].forEach(href=>router.prefetch(href))},[router]);
   useEffect(()=>{let url='';if(profile?.avatarUrl)apiBlob(profile.avatarUrl).then(blob=>{url=URL.createObjectURL(blob);setAvatar(url)}).catch(()=>undefined);return()=>{if(url)URL.revokeObjectURL(url)}},[profile]);
   function theme(){setDark(value=>{const next=!value;localStorage.setItem('quality-hub-theme',next?'dark':'light');return next})}

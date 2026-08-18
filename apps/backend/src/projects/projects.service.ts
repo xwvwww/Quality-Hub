@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { EntityStatus, Prisma } from '@prisma/client';
+import { EntityStatus, MembershipRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto, ProjectQueryDto, UpdateProjectDto } from './projects.dto';
 
@@ -14,15 +14,16 @@ const projectSelect = {
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
 
-  async list(organizationId: string, query: ProjectQueryDto) {
+  async list(organizationId: string, userId: string, role: MembershipRole, query: ProjectQueryDto) {
     const where: Prisma.ProjectWhereInput = {
       organizationId,
+      ...(role === MembershipRole.ADMIN ? {} : { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.search?.trim() ? { OR: [
+      ...(query.search?.trim() ? { AND: [{ OR: [
         { name: { contains: query.search.trim(), mode: 'insensitive' } },
         { code: { contains: query.search.trim(), mode: 'insensitive' } },
         { description: { contains: query.search.trim(), mode: 'insensitive' } },
-      ] } : {}),
+      ] }] } : {}),
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.project.findMany({ where, select: projectSelect, orderBy: { [query.sortBy]: query.sortOrder }, skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
@@ -31,8 +32,8 @@ export class ProjectsService {
     return { items, meta: { page: query.page, pageSize: query.pageSize, total, totalPages: Math.max(1, Math.ceil(total / query.pageSize)) } };
   }
 
-  async get(organizationId: string, id: string) {
-    const project = await this.prisma.project.findFirst({ where: { id, organizationId }, select: projectSelect });
+  async get(organizationId: string, id: string, userId?: string, role?: MembershipRole) {
+    const project = await this.prisma.project.findFirst({ where: { id, organizationId, ...(userId && role !== MembershipRole.ADMIN ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] } : {}) }, select: projectSelect });
     if (!project) throw new NotFoundException('Проект не найден');
     return project;
   }
@@ -45,8 +46,8 @@ export class ProjectsService {
     } catch (error) { this.handleUnique(error); }
   }
 
-  async update(organizationId: string, id: string, dto: UpdateProjectDto) {
-    await this.get(organizationId, id);
+  async update(organizationId: string, id: string, dto: UpdateProjectDto, userId?: string, role?: MembershipRole) {
+    await this.get(organizationId, id, userId, role);
     if (dto.ownerId) await this.ensureMember(organizationId, dto.ownerId);
     try {
       return await this.prisma.project.update({ where: { id }, data: {
@@ -59,13 +60,15 @@ export class ProjectsService {
     } catch (error) { this.handleUnique(error); }
   }
 
-  async archive(organizationId: string, id: string) {
-    await this.get(organizationId, id);
+  async archive(organizationId: string, id: string, userId?: string, role?: MembershipRole) {
+    await this.get(organizationId, id, userId, role);
     return this.prisma.project.update({ where: { id }, data: { status: EntityStatus.ARCHIVED }, select: projectSelect });
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.get(organizationId, id);
+  async remove(organizationId: string, id: string, userId?: string, role?: MembershipRole) {
+    const project = await this.get(organizationId, id, userId, role);
+    const linked = project._count.testCases + project._count.testPlans + project._count.testRuns + project._count.defects;
+    if (linked > 0) throw new ConflictException('Проект содержит рабочие данные. Сначала архивируйте его или удалите связанные данные');
     await this.prisma.project.delete({ where: { id } });
     return { success: true };
   }
