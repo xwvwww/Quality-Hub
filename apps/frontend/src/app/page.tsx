@@ -42,7 +42,7 @@ export default function Login() {
       <div className="flex justify-between"><label className="text-sm font-semibold mb-2">Пароль</label><button type="button" className="border-0 bg-transparent text-brand cursor-pointer">Забыли пароль?</button></div>
       <div className="relative"><input className="field pr-12" type={show ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} minLength={8} required /><button type="button" aria-label="Показать пароль" onClick={() => setShow(!show)} className="absolute right-3 top-3 border-0 bg-transparent text-muted cursor-pointer">{show ? <EyeOff size={19} /> : <Eye size={19} />}</button></div>
       {error && <p role="alert" className="text-red-600 bg-red-50 p-3 rounded-lg text-sm">{error}</p>}
-      <button className="btn w-full mt-6" disabled={loading}>{loading ? 'Вход…' : 'Войти'}</button><p className="text-xs text-muted text-center mt-6">Demo: admin@example.com / Admin123!</p>
+      <button type="submit" className="btn w-full mt-6" disabled={loading}>{loading ? 'Вход…' : 'Войти'}</button><p className="text-xs text-muted text-center mt-6">Demo: admin@example.com / Admin123!</p>
     </form></section>
     <footer className="fixed bottom-5 left-1/2 -translate-x-1/2 lg:left-auto lg:right-8 lg:translate-x-0 text-center lg:text-right z-10"><p className="text-xs text-muted m-0">Quality Hub — авторская разработка</p><p className="text-sm font-semibold m-0 mt-1">Almen Alnur · © 2026</p><p className="text-[10px] text-muted m-0 mt-1">All rights reserved</p></footer>
   </main>;

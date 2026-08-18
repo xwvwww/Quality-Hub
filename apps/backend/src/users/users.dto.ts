@@ -25,6 +25,8 @@ export class UpdateUserDto {
 }
 export class ResetPasswordDto { @IsString() @MinLength(8) @MaxLength(128) @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/) password!: string; }
 export class ListAuditDto {
+  @IsOptional() @IsString() @MaxLength(80) action?: string;
+  @IsOptional() @IsString() @MaxLength(100) search?: string;
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) page = 1;
   @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) pageSize = 30;
 }

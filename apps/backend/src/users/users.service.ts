@@ -60,7 +60,7 @@ export class UsersService {
   }
 
   async audit(organizationId: string, query: ListAuditDto) {
-    const where = { organizationId };
+    const where: Prisma.AuditLogWhereInput = { organizationId, ...(query.action ? { action: query.action } : {}), ...(query.search ? { user: { OR: [{ firstName: { contains: query.search, mode: 'insensitive' } }, { lastName: { contains: query.search, mode: 'insensitive' } }, { email: { contains: query.search, mode: 'insensitive' } }] } } : {}) };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.auditLog.findMany({ where, include: { user: { select: { firstName: true, lastName: true, email: true } } }, orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       this.prisma.auditLog.count({ where }),

@@ -20,7 +20,7 @@ export class WorkspaceService {
       ...cases.map(x => ({ type: 'TEST_CASE', id: x.id, title: x.title, subtitle: `${x.project.code}-TC-${String(x.caseNumber).padStart(4, '0')}`, url: `/test-cases/${x.id}` })),
       ...plans.map(x => ({ type: 'TEST_PLAN', id: x.id, title: x.name, subtitle: x.project.code, url: `/test-plans/${x.id}` })),
       ...runs.map(x => ({ type: 'TEST_RUN', id: x.id, title: x.name, subtitle: x.project.code, url: `/test-runs/${x.id}` })),
-      ...defects.map(x => ({ type: 'DEFECT', id: x.id, title: x.title, subtitle: `${x.project.code}-BUG-${String(x.defectNumber).padStart(4, '0')}`, url: '/defects' })),
+      ...defects.map(x => ({ type: 'DEFECT', id: x.id, title: x.title, subtitle: `${x.project.code}-BUG-${String(x.defectNumber).padStart(4, '0')}`, url: `/defects/${x.id}` })),
       ...requirements.map(x => ({ type: 'REQUIREMENT', id: x.id, title: x.title, subtitle: `${x.project.code}-REQ-${String(x.requirementNumber).padStart(4, '0')}`, url: `/requirements/${x.id}` })),
     ].slice(0, 30);
   }

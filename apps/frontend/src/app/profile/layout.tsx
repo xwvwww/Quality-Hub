@@ -1,1 +1,2 @@
-import Link from'next/link';import{Settings}from'lucide-react';export default function Layout({children}:{children:React.ReactNode}){return <>{children}<Link href="/profile/settings" className="btn fixed right-8 bottom-8 z-40 no-underline flex gap-2"><Settings size={18}/>Настройки</Link></>}
+import Link from 'next/link'; import { KeyRound, Settings } from 'lucide-react';
+export default function Layout({children}:{children:React.ReactNode}){return <>{children}<div className="fixed right-8 bottom-8 z-40 flex gap-2"><Link href="/profile/sessions" className="btn-secondary bg-[var(--panel)] no-underline flex gap-2"><KeyRound size={18}/>Сессии</Link><Link href="/profile/settings" className="btn no-underline flex gap-2"><Settings size={18}/>Настройки</Link></div></>}

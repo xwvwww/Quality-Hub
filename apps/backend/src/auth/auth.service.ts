@@ -20,6 +20,7 @@ export class AuthService {
     const membership = user.memberships[0];
     if (!membership) throw new UnauthorizedException('Пользователь не состоит в организации');
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await this.prisma.auditLog.create({ data: { organizationId: membership.organizationId, userId: user.id, action: 'LOGIN_SUCCESS', entityType: 'USER', entityId: user.id } });
     return this.issue(user.id, user.email, membership.organizationId, membership.role);
   }
 
