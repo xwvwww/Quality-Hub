@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import { AppModule } from './app.module';
 import { basename, resolve } from 'path';
+import { RequestContext } from './audit/request-context';
 
 process.env.UPLOAD_DIR ??= basename(process.cwd()) === 'backend' ? resolve(process.cwd(), 'uploads') : resolve(process.cwd(), 'apps/backend/uploads');
 
@@ -21,6 +22,9 @@ async function bootstrap() {
     if (process.env.NODE_ENV === 'production' && process.env[name]!.startsWith('replace-with')) throw new Error(`${name} must be replaced before production startup`);
   }
   app.setGlobalPrefix('api');
+  const trustedProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
+  if (Number.isInteger(trustedProxyHops) && trustedProxyHops > 0 && trustedProxyHops <= 5) app.getHttpAdapter().getInstance().set('trust proxy', trustedProxyHops);
+  app.use((req: { ip?: string }, _res: unknown, next: () => void) => RequestContext.run(req.ip, next));
   app.use(helmet());
   app.use(compression({ threshold: 1024 }));
   app.use(cookieParser());

@@ -4,6 +4,7 @@ import { stat } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGeneratedReportDto, GeneratedReportQueryDto } from './generated-reports.dto';
+import { RequestContext } from '../audit/request-context';
 
 const reportSelect = {
   id: true, testPlanId: true, requestedById: true, status: true, format: true, includeAttachments: true,
@@ -23,7 +24,7 @@ export class GeneratedReportsService {
     const duplicate = await this.prisma.generatedReport.findFirst({ where: { organizationId, testPlanId: dto.testPlanId, requestedById: userId, format: dto.format, status: { in: [ReportJobStatus.QUEUED, ReportJobStatus.PROCESSING] } }, select: { id: true } });
     if (duplicate) throw new BadRequestException('Такой отчёт уже находится в очереди');
     const report = await this.prisma.generatedReport.create({ data: { organizationId, testPlanId: dto.testPlanId, requestedById: userId, format: dto.format, includeAttachments: dto.includeAttachments }, select: reportSelect });
-    await this.prisma.auditLog.create({ data: { organizationId, userId, action: 'REPORT_QUEUED', entityType: 'GENERATED_REPORT', entityId: report.id, metadata: { testPlanId: dto.testPlanId, format: dto.format } } });
+    await this.prisma.auditLog.create({ data: { organizationId, userId, action: 'REPORT_QUEUED', entityType: 'GENERATED_REPORT', entityId: report.id, metadata: { testPlanId: dto.testPlanId, format: dto.format }, ipAddress: RequestContext.ip() } });
     return report;
   }
 

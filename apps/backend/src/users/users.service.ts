@@ -3,6 +3,7 @@ import { MembershipRole, Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { JwtUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { RequestContext } from '../audit/request-context';
 import { CreateUserDto, ListAuditDto, ListUsersDto, UpdateUserDto } from './users.dto';
 
 @Injectable()
@@ -31,7 +32,7 @@ export class UsersService {
     if (await this.prisma.user.findFirst({ where: { OR: [{ email }, { username }] } })) throw new ConflictException('Пользователь с таким email или логином уже существует');
     return this.prisma.$transaction(async tx => {
       const created = await tx.user.create({ data: { email, username, firstName: body.firstName.trim(), lastName: body.lastName.trim(), passwordHash: await argon2.hash(body.password), memberships: { create: { organizationId: actor.organizationId, role: body.role } } }, select: { id: true, email: true, username: true, firstName: true, lastName: true, isActive: true } });
-      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_CREATED', entityType: 'USER', entityId: created.id, metadata: { email, role: body.role } } });
+      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_CREATED', entityType: 'USER', entityId: created.id, metadata: { email, role: body.role }, ipAddress: RequestContext.ip() } });
       return created;
     });
   }
@@ -44,7 +45,7 @@ export class UsersService {
       if (body.role && body.role !== membership.role) await tx.organizationMember.update({ where: { organizationId_userId: { organizationId: actor.organizationId, userId: id } }, data: { role: body.role } });
       const updated = await tx.user.update({ where: { id }, data: { firstName: body.firstName?.trim(), lastName: body.lastName?.trim(), isActive: body.isActive }, select: { id: true, email: true, username: true, firstName: true, lastName: true, isActive: true } });
       if (body.isActive === false) await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
-      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_UPDATED', entityType: 'USER', entityId: id, metadata: { previousRole: membership.role, ...body } } });
+      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_UPDATED', entityType: 'USER', entityId: id, metadata: { previousRole: membership.role, ...body }, ipAddress: RequestContext.ip() } });
       return { ...updated, role: body.role ?? membership.role };
     });
   }
@@ -54,7 +55,7 @@ export class UsersService {
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id }, data: { passwordHash: await argon2.hash(password) } }),
       this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }),
-      this.prisma.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'PASSWORD_RESET', entityType: 'USER', entityId: id } }),
+      this.prisma.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'PASSWORD_RESET', entityType: 'USER', entityId: id, ipAddress: RequestContext.ip() } }),
     ]);
     return { success: true };
   }

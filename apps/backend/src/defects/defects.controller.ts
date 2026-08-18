@@ -5,6 +5,7 @@ import { Request } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { RequestContext } from '../audit/request-context';
 import { CreateDefectDto, DefectQueryDto, UpdateDefectDto } from './defects.dto';
 import { DefectsService } from './defects.service';
 
@@ -19,7 +20,7 @@ export class DefectsController {
   @Post() @Roles(...editors)
   async create(@Req() req: AuthRequest, @Body() dto: CreateDefectDto) {
     const result = await this.service.create(req.user.organizationId, req.user.sub, dto);
-    await this.prisma.auditLog.create({ data: { organizationId: req.user.organizationId, userId: req.user.sub, action: 'DEFECT_CREATED', entityType: 'DEFECT', entityId: result.id, metadata: { title: dto.title, status: 'OPEN' } } });
+    await this.prisma.auditLog.create({ data: { organizationId: req.user.organizationId, userId: req.user.sub, action: 'DEFECT_CREATED', entityType: 'DEFECT', entityId: result.id, metadata: { title: dto.title, status: 'OPEN' }, ipAddress: RequestContext.ip() } });
     return result;
   }
   @Patch(':id') @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER, MembershipRole.DEVELOPER)
@@ -27,7 +28,7 @@ export class DefectsController {
     const before = await this.service.get(req.user.organizationId, id);
     const result = await this.service.update(req.user.organizationId, id, dto);
     const metadata = { before: { status: before.status, priority: before.priority, severity: before.severity, assigneeId: before.assigneeId }, after: JSON.parse(JSON.stringify(dto)) } as Prisma.InputJsonValue;
-    await this.prisma.auditLog.create({ data: { organizationId: req.user.organizationId, userId: req.user.sub, action: 'DEFECT_UPDATED', entityType: 'DEFECT', entityId: id, metadata } });
+    await this.prisma.auditLog.create({ data: { organizationId: req.user.organizationId, userId: req.user.sub, action: 'DEFECT_UPDATED', entityType: 'DEFECT', entityId: id, metadata, ipAddress: RequestContext.ip() } });
     if (dto.assigneeId && dto.assigneeId !== before.assigneeId) await this.prisma.notification.create({ data: { userId: dto.assigneeId, title: 'Вам назначен дефект', body: `${before.displayId}: ${dto.title ?? before.title}`, url: `/defects/${id}` } });
     return result;
   }
