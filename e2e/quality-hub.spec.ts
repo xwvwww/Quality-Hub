@@ -21,6 +21,16 @@ test('администратор входит и открывает основн
   expect(consoleErrors).toEqual([]);
 });
 
+test('обрабатывает параллельные запросы сводки', async ({ request }) => {
+  const login = await request.post('/api/auth/login', { data: { email: 'admin@example.com', password: 'Admin123!' } });
+  expect(login.ok()).toBe(true);
+  const { accessToken } = await login.json();
+  const started = performance.now();
+  const responses = await Promise.all(Array.from({ length: 30 }, () => request.get('/api/reports/summary', { headers: { Authorization: `Bearer ${accessToken}` } })));
+  expect(responses.every((response) => response.ok())).toBe(true);
+  expect(performance.now() - started).toBeLessThan(10_000);
+});
+
 test('ограничивает повторные попытки входа', async ({ request }) => {
   const statuses: number[] = [];
   for (let attempt = 0; attempt < 9; attempt++) {
