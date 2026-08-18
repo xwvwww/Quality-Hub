@@ -21,8 +21,13 @@ export default function Login() {
       const response = await fetch('/api/auth/login', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message[0] : data.message);
+      const contentType = response.headers.get('content-type') ?? '';
+      const data = contentType.includes('application/json') ? await response.json() : null;
+      if (!response.ok) {
+        const message = Array.isArray(data?.message) ? data.message[0] : data?.message;
+        throw new Error(message || (response.status >= 500 ? 'Backend недоступен. Запустите API на порту 4000' : 'Неверный email или пароль'));
+      }
+      if (!data) throw new Error('Backend вернул некорректный ответ');
       session.set(data); router.push('/dashboard');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось войти');
