@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   creator: 'Almen Alnur',
   publisher: 'Almen Alnur',
   applicationName: 'Quality Hub',
+  icons: { icon: '/icon.svg', shortcut: '/icon.svg', apple: '/icon.svg' },
+  openGraph: { title: 'Quality Hub', description: 'Платформа управления качеством', type: 'website' },
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

@@ -1,102 +1,72 @@
 # Quality Hub
 
-> Автор и разработчик: **Almen Alnur**  
-> Copyright © 2026 Almen Alnur. All rights reserved.
+<div align="center">
+  <strong>Современное рабочее пространство для управления качеством продукта</strong>
+  <br><br>
+  <a href="https://github.com/xwvwww/Quality-Hub/actions"><img alt="Quality Hub CI" src="https://github.com/xwvwww/Quality-Hub/actions/workflows/quality.yml/badge.svg"></a>
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-111827?logo=nextdotjs">
+  <img alt="NestJS" src="https://img.shields.io/badge/NestJS-API-E0234E?logo=nestjs">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
+</div>
 
-Quality Hub является проприетарным программным обеспечением. Копирование,
-изменение, распространение или коммерческое использование без предварительного
-письменного разрешения Almen Alnur запрещено. Полные условия указаны в `LICENSE`.
+## О проекте
 
-Рабочая multi-tenant платформа управления QA. В Этапе 1 реализованы архитектура monorepo, полная доменная Prisma-схема, Docker-инфраструктура, NestJS API, вход по JWT с безопасной ротацией refresh-токенов, backend RBAC, tenant-scoped API и Next.js интерфейс на русском языке.
+Quality Hub объединяет ежедневные QA-процессы в одном интерфейсе: от требований и тест-кейсов до запусков, дефектов, аналитики и отчётов. Платформа создана для команд, которым важны прозрачность, трассируемость и понятная картина качества.
 
-## Требования
+## Возможности
 
-- Node.js 22+, pnpm 9+
-- Docker Engine с Docker Compose v2
+- проекты, требования и трассируемость;
+- версионируемые тест-кейсы с шагами и приоритетами;
+- тест-планы и масштабируемые тестовые запуски;
+- фиксация результатов, времени и вложений;
+- дефекты, Kanban-представление и командные комментарии;
+- метрики, аналитика и печатные отчёты;
+- роли, профили, активные сессии и журнал аудита;
+- светлая и тёмная темы, глобальный поиск и уведомления.
 
-## Быстрый запуск через Docker
+## Технологии
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| Уровень | Стек |
+|---|---|
+| Web | Next.js, React, TypeScript, Tailwind CSS |
+| API | NestJS, Prisma, REST |
+| Data | PostgreSQL |
+| Quality | Jest, TypeScript, GitHub Actions |
 
-Frontend: http://localhost:3000, API: http://localhost:4000/api, Swagger: http://localhost:4000/api/docs, MinIO Console: http://localhost:9001.
+## Локальный запуск
 
-Демонстрационный вход: `admin@example.com` / `Admin123!`. Перед production-развёртыванием смените пароль и оба JWT secrets.
-
-## Локальная разработка
-
-На Windows проще выполнить подготовленный bootstrap-скрипт. Он включает доверие
-к системному хранилищу сертификатов для Node.js, устанавливает зависимости,
-запускает инфраструктуру, применяет миграции и seed:
+Потребуются Node.js 22+, pnpm 9+ и PostgreSQL 16. Параметры среды создаются на основе `.env.example`.
 
 ```powershell
-Copy-Item .env.example .env
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
-$env:NODE_OPTIONS='--use-system-ca'
-corepack pnpm dev
-```
-
-Ручной вариант:
-
-```bash
-cp .env.example .env
 corepack enable
-pnpm install
-docker compose up -d postgres redis minio
-pnpm db:generate
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+corepack pnpm install
+corepack pnpm --filter backend prisma generate
+corepack pnpm --filter backend prisma migrate deploy
+corepack pnpm --filter backend dev
 ```
 
-Если npm registry возвращает `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, используйте
-системные сертификаты Windows перед командой установки:
+Во втором терминале:
 
 ```powershell
-$env:NODE_OPTIONS='--use-system-ca'
-corepack pnpm install
+corepack pnpm --filter frontend dev
 ```
 
-Это сохраняет проверку TLS. Не используйте `strict-ssl=false`. Если сертификат
-корпоративного центра сертификации отсутствует в Windows, запросите PEM-файл у
-администратора и задайте его через `NODE_EXTRA_CA_CERTS`.
+Frontend будет доступен по адресу `http://localhost:3000`.
 
-## Проверки
+## Проверка качества
 
-```bash
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm --filter backend prisma validate
-pnpm --filter backend prisma migrate status
+```powershell
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
 ```
 
-## Архитектура
+## Владелец и автор
 
-```text
-apps/frontend     Next.js App Router, TypeScript, Tailwind
-apps/backend      NestJS REST API, Swagger, guards, validation
-  prisma          PostgreSQL schema, migrations, seed
-packages          место для общих ui/types/config следующих этапов
-```
+Quality Hub создан и разработан **Almen Alnur**.
 
-Организация является границей данных. API получает `organizationId` только из проверенного JWT, а не из произвольного frontend-параметра. Роль участника организации проверяет глобальный `RolesGuard`. Пароли хешируются Argon2id. Access token короткоживущий; refresh token ротируется, в БД хранится только SHA-256 hash, а обнаружение повторного использования отзывает всю token family.
+Copyright © 2026 Almen Alnur. All rights reserved.
 
-Схема заранее нормализует будущие домены: проекты, дерево репозитория, версии и шаги тест-кейсов, планы, раны и результаты, дефекты, требования и трассировку, вложения, комментарии, аудит, автоматизацию и performance-результаты. Индексы ориентированы на tenant-scoped поиск, фильтрацию и серверную пагинацию.
+## Лицензия
 
-## Переменные окружения
-
-Все параметры и безопасные шаблоны перечислены в `.env.example`. Для production обязательны уникальные `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, пароль PostgreSQL и MinIO, TLS и `COOKIE_SECURE=true`.
-
-## API Этапа 1
-
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `GET /api/organizations/current`
-- `GET /api/users` — только Administrator и QA Lead
-
-Swagger/OpenAPI генерируется из работающего NestJS приложения по `/api/docs`.
+Это проприетарное программное обеспечение. Копирование, изменение, распространение или коммерческое использование без письменного разрешения владельца запрещено. Полные условия приведены в [LICENSE](LICENSE).
