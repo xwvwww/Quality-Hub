@@ -6,9 +6,21 @@ type Case = { id: string; displayId: string; title: string; status: string; prio
 type Plan = { id: string; name: string; description: string | null; projectId: string; environment: string | null; build: string | null; version: string | null; startsAt: string | null; endsAt: string | null; project: { code: string; name: string }; cases: Array<{ position: number; testCase: Case }>; _count: { runs: number } };
 type FolderItem = { id: string; name: string; parentId: string | null };
 const priorityLabels: Record<string, string> = { HIGHEST: 'Самый высокий', HIGH: 'Высокий', MEDIUM: 'Средний', LOW: 'Низкий', LOWEST: 'Очень низкий' };
+async function loadAllProjectCases(projectId: string) {
+  const items: Case[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const response = await api<{ items: Case[]; meta: { totalPages: number } }>(`/projects/${projectId}/test-cases?page=${page}&pageSize=100`);
+    items.push(...response.items);
+    totalPages = response.meta.totalPages;
+    page += 1;
+  } while (page <= totalPages);
+  return items;
+}
 export default function TestPlanDetail() {
   const { id } = useParams<{ id: string }>(); const router = useRouter(); const [plan, setPlan] = useState<Plan | null>(null); const [available, setAvailable] = useState<Case[]>([]); const [folders, setFolders] = useState<FolderItem[]>([]); const [selected, setSelected] = useState<string[]>([]); const [folderId, setFolderId] = useState(''); const [priority, setPriority] = useState(''); const [modal, setModal] = useState(false); const [error, setError] = useState(''); const role = session.get()?.user.role; const canManage = role === 'ADMIN' || role === 'QA_LEAD';
-  const load = useCallback(async () => { try { const value = await api<Plan>(`/test-plans/${id}`); setPlan(value); const [cases, folderItems] = await Promise.all([api<{ items: Case[] }>(`/projects/${value.projectId}/test-cases?page=1&pageSize=100`), api<FolderItem[]>(`/projects/${value.projectId}/test-case-folders`)]); const used = new Set(value.cases.map(entry => entry.testCase.id)); setAvailable(cases.items.filter(item => !used.has(item.id))); setFolders(folderItems); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки'); } }, [id]);
+  const load = useCallback(async () => { try { const value = await api<Plan>(`/test-plans/${id}`); setPlan(value); const [cases, folderItems] = await Promise.all([loadAllProjectCases(value.projectId), api<FolderItem[]>(`/projects/${value.projectId}/test-case-folders`)]); const used = new Set(value.cases.map(entry => entry.testCase.id)); setAvailable(cases.filter(item => !used.has(item.id))); setFolders(folderItems); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки'); } }, [id]);
   useEffect(() => { load(); }, [load]);
   async function add() { const body: Record<string, unknown> = {}; if (selected.length) body.testCaseIds = selected; if (folderId) body.folderId = folderId; if (priority) body.priority = priority; try { await api(`/test-plans/${id}/cases`, { method: 'POST', body: JSON.stringify(body) }); setModal(false); setSelected([]); setFolderId(''); setPriority(''); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка добавления'); } }
   async function remove(testCaseId: string) { try { await api(`/test-plans/${id}/cases/${testCaseId}`, { method: 'DELETE' }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка удаления'); } }

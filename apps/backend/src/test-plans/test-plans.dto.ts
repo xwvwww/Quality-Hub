@@ -24,7 +24,7 @@ export class TestPlanQueryDto {
 }
 
 export class AddPlanCasesDto {
-  @IsOptional() @IsArray() @ArrayMaxSize(500) @IsUUID('4', { each: true }) testCaseIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(5000) @IsUUID('4', { each: true }) testCaseIds?: string[];
   @IsOptional() @IsUUID() folderId?: string;
   @IsOptional() @IsEnum(Priority) priority?: Priority;
 }
