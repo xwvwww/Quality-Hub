@@ -9,7 +9,7 @@ type Org={id:string;name:string;slug:string;isActive:boolean;createdAt:string;up
 type User={id:string;email:string;username:string;firstName:string;lastName:string;isActive:boolean;isSystemAdmin:boolean;lastLoginAt:string|null;createdAt:string;memberships:Array<{role:string;organization:{id:string;name:string}}>};
 type Audit={id:string;action:string;entityType:string|null;entityId:string|null;ipAddress:string|null;createdAt:string;metadata:any;user:{firstName:string;lastName:string;email:string}|null;organization:{name:string}|null};
 type Profile={id:string;email:string;username:string;firstName:string;lastName:string;lastLoginAt:string|null;createdAt:string};
-const roles:Record<string,string>={ADMIN:'Администратор организации',QA_LEAD:'QA Lead',QA_ENGINEER:'QA Engineer',DEVELOPER:'Разработчик',VIEWER:'Наблюдатель'};
+const roles:Record<string,string>={ADMIN:'Администратор организации',QA_LEAD:'QA Lead',QA_ENGINEER:'QA Engineer',BUSINESS_ANALYST:'Бизнес-аналитик'};
 const actionLabels:Record<string,string>={LOGIN_SUCCESS:'Вход в систему',SYSTEM_USER_CREATED:'Создан пользователь',SYSTEM_USER_UPDATED:'Изменён пользователь',ORGANIZATION_CREATED:'Создана организация',ORGANIZATION_UPDATED:'Изменена организация',ORGANIZATION_DEACTIVATED:'Организация приостановлена',SYSTEM_PROFILE_UPDATED:'Изменён профиль администратора'};
 const emptyUser={email:'',username:'',firstName:'',lastName:'',password:'',organizationId:'',role:'QA_ENGINEER'};
 function initials(first='',last=''){return `${first[0]??''}${last[0]??''}`.toUpperCase()||'SA'}
