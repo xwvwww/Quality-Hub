@@ -1,7 +1,7 @@
 export type Session = {
   accessToken: string;
   refreshToken?: string;
-  user: { id: string; email: string; organizationId: string; role: string };
+  user: { id: string; email: string; organizationId: string; role: string; systemAdmin?: boolean };
 };
 
 const key = 'quality-hub-session';
