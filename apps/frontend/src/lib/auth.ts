@@ -1,6 +1,6 @@
 export type Session = {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   user: { id: string; email: string; organizationId: string; role: string };
 };
 
@@ -19,13 +19,14 @@ export async function api<T>(path: string, init: RequestInit = {}) {
   let current = session.get();
   const send = () => fetch(`/api${path}`, {
     ...init,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init.headers, Authorization: `Bearer ${current?.accessToken ?? ''}` },
   });
   let response: Response;
   try { response = await send(); } catch { throw new Error('Backend недоступен. Проверьте, что API запущен на порту 4000'); }
-  if (response.status === 401 && current?.refreshToken) {
+  if (response.status === 401 && current) {
     const refreshed = await fetch('/api/auth/refresh', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: current.refreshToken }),
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
     if (refreshed.ok) {
       current = await refreshed.json();
@@ -50,14 +51,14 @@ export async function api<T>(path: string, init: RequestInit = {}) {
 
 export async function apiUpload<T>(path: string, formData: FormData) {
   const current = session.get();
-  const response = await fetch(`/api${path}`, { method: 'POST', headers: { Authorization: `Bearer ${current?.accessToken ?? ''}` }, body: formData });
+  const response = await fetch(`/api${path}`, { method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${current?.accessToken ?? ''}` }, body: formData });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Ошибка загрузки файла');
   return response.json() as Promise<T>;
 }
 
 export async function apiBlob(path: string) {
   const current = session.get();
-  const response = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${current?.accessToken ?? ''}` } });
+  const response = await fetch(`/api${path}`, { credentials: 'include', headers: { Authorization: `Bearer ${current?.accessToken ?? ''}` } });
   if (!response.ok) throw new Error('Не удалось загрузить вложение');
   return response.blob();
 }

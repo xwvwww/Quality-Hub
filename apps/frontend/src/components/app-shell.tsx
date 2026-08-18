@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(()=>{setHydrated(true);if(!session.get())router.replace('/');setDark(localStorage.getItem('quality-hub-theme')==='dark');api<{firstName:string;lastName:string;avatarUrl:string|null}>('/profile').then(setProfile).catch(()=>undefined)},[router]);
   useEffect(()=>{let url='';if(profile?.avatarUrl)apiBlob(profile.avatarUrl).then(blob=>{url=URL.createObjectURL(blob);setAvatar(url)}).catch(()=>undefined);return()=>{if(url)URL.revokeObjectURL(url)}},[profile]);
   function theme(){setDark(value=>{const next=!value;localStorage.setItem('quality-hub-theme',next?'dark':'light');return next})}
-  function logout(){session.clear();router.replace('/')}
+  async function logout(){try{await fetch('/api/auth/logout',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'})}finally{session.clear();router.replace('/')}}
   if(!hydrated)return <div className="min-h-screen bg-[var(--canvas)]"><div className="h-16 border-b border-[var(--line)] bg-[var(--panel)]"/><div className="max-w-7xl mx-auto p-7"><div className="h-8 w-56 rounded-lg bg-slate-100 animate-pulse"/><div className="h-64 mt-7 rounded-2xl bg-slate-100 animate-pulse"/></div></div>;
   if(path.startsWith('/reports/test-plans/'))return <div className="min-h-screen bg-slate-50 text-slate-950 print:bg-white">{children}</div>;
   return <div className={dark?'dark min-h-screen':'min-h-screen'}><div className="flex min-h-screen">
