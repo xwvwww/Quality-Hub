@@ -1,0 +1,1 @@
+'use client';import{usePathname}from'next/navigation';import{ImportExportPanel}from'./import-export-panel';export default function TestCasesLayout({children}:{children:React.ReactNode}){const path=usePathname();return <>{children}{path==='/test-cases'&&<ImportExportPanel/>}</>}

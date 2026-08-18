@@ -1,0 +1,1 @@
+import Link from 'next/link'; import { Columns3 } from 'lucide-react'; export default function DefectsLayout({children}:{children:React.ReactNode}){return <>{children}<Link href="/defects/kanban" className="btn fixed bottom-8 right-8 z-40 no-underline flex gap-2 items-center"><Columns3 size={18}/>Kanban</Link></>}

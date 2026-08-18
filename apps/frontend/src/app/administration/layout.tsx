@@ -1,0 +1,1 @@
+import Link from'next/link';import{ShieldCheck}from'lucide-react';export default function Layout({children}:{children:React.ReactNode}){return <>{children}<Link href="/administration/project-access" className="btn fixed right-8 bottom-8 z-40 no-underline flex gap-2"><ShieldCheck size={18}/>Права проектов</Link></>}

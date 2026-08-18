@@ -1,0 +1,1 @@
+'use client'; import { useParams } from 'next/navigation'; import { EntityComments } from '@/components/entity-comments'; export default function DetailLayout({children}:{children:React.ReactNode}){const{id}=useParams<{id:string}>();return <>{children}<EntityComments entityType="REQUIREMENT" entityId={id}/></>}

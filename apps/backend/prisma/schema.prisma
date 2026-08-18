@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  ADMIN
+  QA_LEAD
+  QA_ENGINEER
+  DEVELOPER
+  VIEWER
+}
+
+enum EntityStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TestCaseStatus {
+  DRAFT
+  READY
+  NEEDS_UPDATE
+  OBSOLETE
+  ARCHIVED
+}
+
+enum Priority {
+  HIGHEST
+  HIGH
+  MEDIUM
+  LOW
+  LOWEST
+}
+
+enum Severity {
+  BLOCKER
+  CRITICAL
+  MAJOR
+  MINOR
+  TRIVIAL
+}
+
+enum TestType {
+  FUNCTIONAL
+  UI
+  API
+  SECURITY
+  PERFORMANCE
+  REGRESSION
+  SMOKE
+  INTEGRATION
+  LOCALIZATION
+  COMPATIBILITY
+  USABILITY
+}
+
+enum TestStepSection {
+  PRECONDITION
+  ACTION
+  POSTCONDITION
+}
+
+enum RunStatus {
+  NOT_RUN
+  PASSED
+  FAILED
+  BLOCKED
+  SKIPPED
+  RETEST
+}
+
+enum DefectStatus {
+  OPEN
+  IN_PROGRESS
+  FIXED
+  READY_FOR_RETEST
+  CLOSED
+  REOPENED
+  REJECTED
+}
+
+enum RequirementStatus {
+  DRAFT
+  APPROVED
+  IMPLEMENTED
+  DEPRECATED
+}
+
+model User {
+  id            String               @id @default(uuid()) @db.Uuid
+  email         String               @unique @db.VarChar(255)
+  username      String               @unique @db.VarChar(80)
+  passwordHash  String
+  firstName     String               @db.VarChar(100)
+  lastName      String               @db.VarChar(100)
+  isActive      Boolean              @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  locale        String               @default("ru") @db.VarChar(10)
+  timezone      String               @default("Asia/Qyzylorda") @db.VarChar(80)
+  emailNotifications Boolean         @default(true)
+  memberships   OrganizationMember[]
+  ownedProjects Project[]            @relation("ProjectOwner")
+  refreshTokens RefreshToken[]
+  comments      Comment[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+}
+
+model Organization {
+  id        String               @id @default(uuid()) @db.Uuid
+  name      String               @db.VarChar(150)
+  slug      String               @unique @db.VarChar(80)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  members   OrganizationMember[]
+  projects  Project[]
+  tags      Tag[]
+  auditLogs AuditLog[]
+}
+
+model OrganizationMember {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  userId         String         @db.Uuid
+  role           MembershipRole
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  familyId  String    @db.Uuid
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, familyId])
+}
+
+model Project {
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @db.Uuid
+  code               String           @db.VarChar(12)
+  name               String           @db.VarChar(255)
+  description        String?
+  ownerId            String           @db.Uuid
+  status             EntityStatus     @default(ACTIVE)
+  nextTestCaseNumber Int              @default(1)
+  nextDefectNumber   Int              @default(1)
+  nextRequirementNumber Int           @default(1)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner              User             @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members            ProjectMember[]
+  folders            TestCaseFolder[]
+  testCases          TestCase[]
+  testPlans          TestPlan[]
+  testRuns           TestRun[]
+  defects            Defect[]
+  requirements       Requirement[]
+  environments       Environment[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model ProjectMember {
+  projectId String         @db.Uuid
+  userId    String         @db.Uuid
+  role      MembershipRole
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+}
+
+model TestCaseFolder {
+  id        String           @id @default(uuid()) @db.Uuid
+  projectId String           @db.Uuid
+  parentId  String?          @db.Uuid
+  name      String           @db.VarChar(255)
+  position  Int              @default(0)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    TestCaseFolder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children  TestCaseFolder[] @relation("FolderTree")
+  testCases TestCase[]
+
+  @@index([projectId, parentId])
+}
+
+model TestCase {
+  id             String                @id @default(uuid()) @db.Uuid
+  projectId      String                @db.Uuid
+  folderId       String?               @db.Uuid
+  caseNumber     Int
+  title          String                @db.VarChar(255)
+  status         TestCaseStatus        @default(DRAFT)
+  priority       Priority              @default(MEDIUM)
+  severity       Severity              @default(MAJOR)
+  type           TestType              @default(FUNCTIONAL)
+  currentVersion Int                   @default(1)
+  authorId       String                @db.Uuid
+  assigneeId     String?               @db.Uuid
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder         TestCaseFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  versions       TestCaseVersion[]
+  tags           TestTag[]
+  planCases      TestPlanCase[]
+  runCases       TestRunCase[]
+  requirements   RequirementTestCase[]
+  defects        Defect[]
+
+  @@unique([projectId, caseNumber])
+  @@index([projectId, status, priority])
+  @@index([title])
+}
+
+model TestCaseVersion {
+  id              String     @id @default(uuid()) @db.Uuid
+  testCaseId      String     @db.Uuid
+  version         Int
+  description     String?
+  durationSeconds Int        @default(0)
+  preconditions   String?
+  postconditions  String?
+  createdById     String     @db.Uuid
+  createdAt       DateTime   @default(now())
+  testCase        TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  steps           TestStep[]
+
+  @@unique([testCaseId, version])
+}
+
+model TestStep {
+  id             String          @id @default(uuid()) @db.Uuid
+  versionId      String          @db.Uuid
+  position       Int
+  section        TestStepSection @default(ACTION)
+  action         String
+  expectedResult String
+  version        TestCaseVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, section, position])
+}
+
+model Tag {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(80)
+  color          String       @default("#6366f1") @db.VarChar(7)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  testCases      TestTag[]
+
+  @@unique([organizationId, name])
+}
+
+model TestTag {
+  testCaseId String   @db.Uuid
+  tagId      String   @db.Uuid
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, tagId])
+}
+
+model TestPlan {
+  id          String         @id @default(uuid()) @db.Uuid
+  projectId   String         @db.Uuid
+  name        String         @db.VarChar(255)
+  description String?
+  authorId    String         @db.Uuid
+  startsAt    DateTime?
+  endsAt      DateTime?
+  environment String?        @db.VarChar(100)
+  build       String?        @db.VarChar(100)
+  version     String?        @db.VarChar(100)
+  createdAt   DateTime       @default(now())
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cases       TestPlanCase[]
+  runs        TestRun[]
+}
+
+model TestPlanCase {
+  testPlanId String   @db.Uuid
+  testCaseId String   @db.Uuid
+  position   Int      @default(0)
+  testPlan   TestPlan @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@id([testPlanId, testCaseId])
+}
+
+model TestRun {
+  id          String        @id @default(uuid()) @db.Uuid
+  projectId   String        @db.Uuid
+  testPlanId  String?       @db.Uuid
+  name        String        @db.VarChar(255)
+  build       String?       @db.VarChar(100)
+  environment String?       @db.VarChar(100)
+  createdById String        @db.Uuid
+  createdAt   DateTime      @default(now())
+  completedAt DateTime?
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testPlan    TestPlan?     @relation(fields: [testPlanId], references: [id])
+  cases       TestRunCase[]
+  defects     Defect[]
+}
+
+model TestRunCase {
+  id         String       @id @default(uuid()) @db.Uuid
+  testRunId  String       @db.Uuid
+  testCaseId String       @db.Uuid
+  assigneeId String?      @db.Uuid
+  status     RunStatus    @default(NOT_RUN)
+  position   Int          @default(0)
+  testRun    TestRun      @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testCase   TestCase     @relation(fields: [testCaseId], references: [id])
+  results    TestResult[]
+  defects    Defect[]
+
+  @@unique([testRunId, testCaseId])
+}
+
+model TestResult {
+  id              String      @id @default(uuid()) @db.Uuid
+  runCaseId       String      @db.Uuid
+  status          RunStatus
+  actualResult    String?
+  comment         String?
+  durationSeconds Int?
+  executedById    String      @db.Uuid
+  createdAt       DateTime    @default(now())
+  runCase         TestRunCase @relation(fields: [runCaseId], references: [id], onDelete: Cascade)
+}
+
+model Defect {
+  id           String       @id @default(uuid()) @db.Uuid
+  projectId    String       @db.Uuid
+  testRunId    String?      @db.Uuid
+  testCaseId   String?      @db.Uuid
+  runCaseId    String?      @db.Uuid
+  defectNumber Int
+  title        String       @db.VarChar(255)
+  description  String?
+  stepsToReproduce String?
+  expectedResult   String?
+  actualResult     String?
+  environment      String?  @db.VarChar(100)
+  build            String?  @db.VarChar(100)
+  status       DefectStatus @default(OPEN)
+  priority     Priority     @default(MEDIUM)
+  severity     Severity     @default(MAJOR)
+  reporterId   String       @db.Uuid
+  assigneeId   String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testRun      TestRun?     @relation(fields: [testRunId], references: [id])
+  testCase     TestCase?    @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
+  runCase      TestRunCase? @relation(fields: [runCaseId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, defectNumber])
+  @@index([projectId, status, severity])
+}
+
+model Requirement {
+  id                String                @id @default(uuid()) @db.Uuid
+  projectId         String                @db.Uuid
+  requirementNumber Int
+  title             String                @db.VarChar(255)
+  description       String?
+  status            RequirementStatus     @default(DRAFT)
+  priority          Priority              @default(MEDIUM)
+  authorId          String                 @db.Uuid
+  assigneeId        String?                @db.Uuid
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  project           Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testCases         RequirementTestCase[]
+
+  @@unique([projectId, requirementNumber])
+  @@index([projectId, status, priority])
+}
+
+model RequirementTestCase {
+  requirementId String      @db.Uuid
+  testCaseId    String      @db.Uuid
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  testCase      TestCase    @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@id([requirementId, testCaseId])
+}
+
+model Environment {
+  id        String  @id @default(uuid()) @db.Uuid
+  projectId String  @db.Uuid
+  name      String  @db.VarChar(100)
+  baseUrl   String?
+  browser   String?
+  os        String?
+  device    String?
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+}
+
+model Attachment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  entityType     String   @db.VarChar(50)
+  entityId       String   @db.Uuid
+  fileName       String
+  mimeType       String
+  size           Int
+  storageKey     String   @unique
+  uploadedById   String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, entityType, entityId])
+}
+
+model Comment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  entityType     String   @db.VarChar(50)
+  entityId       String   @db.Uuid
+  body           String
+  authorId       String   @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  author         User     @relation(fields: [authorId], references: [id])
+
+  @@index([organizationId, entityType, entityId])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @db.Uuid
+  userId         String?       @db.Uuid
+  action         String        @db.VarChar(50)
+  entityType     String?       @db.VarChar(50)
+  entityId       String?       @db.Uuid
+  metadata       Json?
+  ipAddress      String?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+model AutomationResult {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  projectId      String    @db.Uuid
+  externalId     String
+  status         RunStatus
+  durationMs     Int
+  framework      String
+  environment    String?
+  payload        Json?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, projectId, externalId])
+}
+
+model AutomationApiKey {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  projectId      String    @db.Uuid
+  name           String    @db.VarChar(100)
+  keyHash        String    @unique @db.VarChar(64)
+  keyPrefix      String    @db.VarChar(16)
+  createdById    String    @db.Uuid
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+
+  @@index([organizationId, projectId, revokedAt])
+}
+
+model PerformanceResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  projectId      String   @db.Uuid
+  testName       String
+  users          Int
+  rampUp         Int
+  loops          Int
+  requests       Int
+  average        Float
+  median         Float
+  p90            Float
+  p95            Float
+  p99            Float
+  min            Float
+  max            Float
+  throughput     Float
+  errorRate      Float
+  apdex          Float
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, projectId, createdAt])
+}

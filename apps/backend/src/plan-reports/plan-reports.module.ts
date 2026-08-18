@@ -1,0 +1,1 @@
+import{Module}from'@nestjs/common';import{PlanReportsController}from'./plan-reports.controller';import{PlanReportsService}from'./plan-reports.service';@Module({controllers:[PlanReportsController],providers:[PlanReportsService]})export class PlanReportsModule{}

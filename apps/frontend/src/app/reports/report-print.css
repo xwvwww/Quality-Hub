@@ -1,0 +1,21 @@
+@media print {
+  @page { size: A3 portrait; margin: 14mm; }
+  body { background: white !important; color: #172033 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+  details { break-inside: avoid; }
+  details > summary { list-style: none; }
+  details:not([open]) > *:not(summary) { display: block; }
+  main { max-width: none !important; width: 100% !important; padding: 0 !important; }
+  main > header {
+    background: #f8faff !important;
+    color: #172033 !important;
+    border: 1px solid #d8deed !important;
+  }
+  main > header * { color: #172033 !important; opacity: 1 !important; }
+  main > header > p:first-child { color: #4f46e5 !important; }
+  main > header h1 { color: #111827 !important; font-size: 30pt !important; }
+  main > header .text-indigo-300,
+  main > header .text-indigo-200,
+  main > header .text-indigo-100 { color: #5b6475 !important; }
+  h1, h2, h3, h4, p, span, b { text-shadow: none !important; }
+}

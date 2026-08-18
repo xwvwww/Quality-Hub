@@ -1,0 +1,7 @@
+import { PartialType } from '@nestjs/swagger';
+import { DefectStatus, Priority, Severity } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+export class CreateDefectDto {@IsUUID()projectId!:string;@IsString()@MinLength(2)@MaxLength(255)title!:string;@IsOptional()@IsString()@MaxLength(10000)description?:string;@IsOptional()@IsString()@MaxLength(10000)stepsToReproduce?:string;@IsOptional()@IsString()@MaxLength(10000)expectedResult?:string;@IsOptional()@IsString()@MaxLength(10000)actualResult?:string;@IsOptional()@IsString()@MaxLength(100)environment?:string;@IsOptional()@IsString()@MaxLength(100)build?:string;@IsOptional()@IsEnum(Priority)priority?:Priority;@IsOptional()@IsEnum(Severity)severity?:Severity;@IsOptional()@IsUUID()assigneeId?:string;@IsOptional()@IsUUID()testRunId?:string;@IsOptional()@IsUUID()testCaseId?:string;@IsOptional()@IsUUID()runCaseId?:string;}
+export class UpdateDefectDto extends PartialType(CreateDefectDto){@IsOptional()@IsEnum(DefectStatus)status?:DefectStatus;}
+export class DefectQueryDto{@IsOptional()@IsUUID()projectId?:string;@IsOptional()@IsString()@MaxLength(255)search?:string;@IsOptional()@IsEnum(DefectStatus)status?:DefectStatus;@IsOptional()@IsEnum(Priority)priority?:Priority;@IsOptional()@IsEnum(Severity)severity?:Severity;@IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;@IsOptional()@Type(()=>Number)@IsInt()@Min(10)@Max(100)pageSize=20;}
