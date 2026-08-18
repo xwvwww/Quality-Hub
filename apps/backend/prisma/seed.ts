@@ -10,8 +10,8 @@ async function main() {
   const passwordHash = await argon2.hash('Admin123!');
   const user = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
-    update: {},
-    create: { email: 'admin@example.com', username: 'admin', firstName: 'Alnur', lastName: 'Almen', passwordHash },
+    update: { isSystemAdmin: true },
+    create: { email: 'admin@example.com', username: 'admin', firstName: 'Alnur', lastName: 'Almen', passwordHash, isSystemAdmin: true },
   });
   const org = await prisma.organization.upsert({
     where: { slug: 'demo-qa' },

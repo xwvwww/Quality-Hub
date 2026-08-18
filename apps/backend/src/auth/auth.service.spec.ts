@@ -23,4 +23,16 @@ describe('AuthService', () => {
     const service = new AuthService(prisma, {} as any);
     await expect(service.login('admin@example.com', 'wrong-password')).rejects.toThrow('Неверный email или пароль');
   });
+
+  it('keeps the system administrator out of the user portal', async () => {
+    const passwordHash = await argon2.hash('Password1!');
+    const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ isActive: true, isSystemAdmin: true, passwordHash, memberships: [] }) } } as any;
+    await expect(new AuthService(prisma, {} as any).login('admin@example.com', 'Password1!', 'user')).rejects.toThrow('административный портал');
+  });
+
+  it('keeps organization users out of the system admin portal', async () => {
+    const passwordHash = await argon2.hash('Password1!');
+    const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ isActive: true, isSystemAdmin: false, passwordHash, memberships: [] }) } } as any;
+    await expect(new AuthService(prisma, {} as any).login('qa@example.com', 'Password1!', 'admin')).rejects.toThrow('Нет прав системного администратора');
+  });
 });

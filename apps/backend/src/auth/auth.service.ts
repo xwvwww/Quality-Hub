@@ -10,7 +10,7 @@ import { RequestContext } from '../audit/request-context';
 export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, portal: 'user' | 'admin' = 'user') {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       include: { memberships: { include: { organization: true } } },
@@ -18,11 +18,13 @@ export class AuthService {
     if (!user?.isActive || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException('Неверный email или пароль');
     }
+    if (portal === 'admin' && !user.isSystemAdmin) throw new UnauthorizedException('Нет прав системного администратора');
+    if (portal === 'user' && user.isSystemAdmin) throw new UnauthorizedException('Используйте административный портал: http://localhost:3001');
     const membership = user.memberships[0];
     if (!membership) throw new UnauthorizedException('Пользователь не состоит в организации');
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.prisma.auditLog.create({ data: { organizationId: membership.organizationId, userId: user.id, action: 'LOGIN_SUCCESS', entityType: 'USER', entityId: user.id, ipAddress: RequestContext.ip() } });
-    return this.issue(user.id, user.email, membership.organizationId, membership.role);
+    return this.issue(user.id, user.email, membership.organizationId, membership.role, undefined, user.isSystemAdmin);
   }
 
   async requestPasswordReset(email: string) {
@@ -35,7 +37,7 @@ export class AuthService {
     return { success: true, message: 'Если аккаунт существует, администратор получил запрос.' };
   }
 
-  async refresh(raw: string) {
+  async refresh(raw: string, portal: 'user' | 'admin' = 'user') {
     let payload: { sub: string; familyId: string };
     try {
       payload = await this.jwt.verifyAsync(raw, { secret: process.env.JWT_REFRESH_SECRET });
@@ -50,10 +52,12 @@ export class AuthService {
       if (stored) await this.prisma.refreshToken.updateMany({ where: { familyId: stored.familyId }, data: { revokedAt: new Date() } });
       throw new UnauthorizedException('Refresh token отозван');
     }
+    if (portal === 'admin' && !stored.user.isSystemAdmin) throw new UnauthorizedException('Нет прав системного администратора');
+    if (portal === 'user' && stored.user.isSystemAdmin) throw new UnauthorizedException('Используйте административный портал: http://localhost:3001');
     const membership = stored.user.memberships[0];
     if (!stored.user.isActive || !membership) throw new UnauthorizedException('Доступ отозван');
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    return this.issue(stored.user.id, stored.user.email, membership.organizationId, membership.role, stored.familyId);
+    return this.issue(stored.user.id, stored.user.email, membership.organizationId, membership.role, stored.familyId, stored.user.isSystemAdmin);
   }
 
   async logout(raw?: string) {
@@ -67,14 +71,14 @@ export class AuthService {
     return { id: item && !item.revokedAt && item.expiresAt > new Date() ? item.id : null };
   }
 
-  private async issue(sub: string, email: string, organizationId: string, role: MembershipRole, familyId: string = randomUUID()) {
-    const claims = { sub, email, organizationId, role };
+  private async issue(sub: string, email: string, organizationId: string, role: MembershipRole, familyId: string = randomUUID(), systemAdmin = false) {
+    const claims = { sub, email, organizationId, role, systemAdmin };
     const accessToken = await this.jwt.signAsync(claims, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: (process.env.ACCESS_TOKEN_TTL ?? '15m') as never });
     const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7);
     // jti makes every rotated token unique even when two tokens are issued in the same second.
     const refreshToken = await this.jwt.signAsync({ sub, familyId, jti: randomUUID() }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: `${days}d` as never });
     await this.prisma.refreshToken.create({ data: { userId: sub, tokenHash: this.hash(refreshToken), familyId, expiresAt: new Date(Date.now() + days * 86_400_000) } });
-    return { accessToken, refreshToken, user: { id: sub, email, organizationId, role } };
+    return { accessToken, refreshToken, user: { id: sub, email, organizationId, role, systemAdmin } };
   }
 
   private hash(token: string) {

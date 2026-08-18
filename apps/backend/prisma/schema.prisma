@@ -116,6 +116,7 @@ model User {
   locale        String               @default("ru") @db.VarChar(10)
   timezone      String               @default("Asia/Qyzylorda") @db.VarChar(80)
   emailNotifications Boolean         @default(true)
+  isSystemAdmin Boolean              @default(false)
   memberships   OrganizationMember[]
   ownedProjects Project[]            @relation("ProjectOwner")
   refreshTokens RefreshToken[]
