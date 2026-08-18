@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { ChangePasswordDto, UpdatePreferencesDto, UpdateProfileDto } from './profile.dto';
 import { ProfileService } from './profile.service';
+import { validateUpload } from '../security/upload-validation';
 type AuthRequest = Request & { user: JwtUser };
 @Controller('profile')
 export class ProfileController {
@@ -15,6 +16,6 @@ export class ProfileController {
   @Delete('sessions/:id') revokeSession(@Req() req: AuthRequest, @Param('id') id: string) { return this.service.revokeSession(req.user.sub, id); }
   @Patch() update(@Req() req: AuthRequest, @Body() dto: UpdateProfileDto) { return this.service.update(req.user.organizationId, req.user.sub, dto.firstName, dto.lastName); }
   @Post('password') password(@Req() req: AuthRequest, @Body() dto: ChangePasswordDto) { return this.service.password(req.user.organizationId, req.user.sub, dto.currentPassword, dto.newPassword); }
-  @Post('avatar') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } })) upload(@Req() req: AuthRequest, @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) { return this.service.upload(req.user.organizationId, req.user.sub, file); }
+  @Post('avatar') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } })) upload(@Req() req: AuthRequest, @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) { validateUpload(file, ['image/png', 'image/jpeg', 'image/webp'], 5 * 1024 * 1024); return this.service.upload(req.user.organizationId, req.user.sub, file); }
   @Get('avatar/:id') async avatar(@Req() req: AuthRequest, @Param('id') id: string, @Res() res: Response) { const file = await this.service.avatar(req.user.organizationId, id); res.setHeader('Content-Type', file.mimeType); return res.sendFile(file.path); }
 }
