@@ -50,8 +50,8 @@ export class GeneratedReportsWorker implements OnModuleInit, OnModuleDestroy {
         } });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Неизвестная ошибка';
-        this.logger.error(`Report ${job.id} failed: ${message}`);
-        await this.prisma.generatedReport.update({ where: { id: job.id }, data: { status: ReportJobStatus.FAILED, progress: 0, error: message.slice(0, 1_000), completedAt: new Date() } });
+        this.logger.error(`Report ${job.id} failed: ${message.slice(0, 300)}`);
+        await this.prisma.generatedReport.update({ where: { id: job.id }, data: { status: ReportJobStatus.FAILED, progress: 0, error: 'Не удалось сформировать отчёт. Повторите позже', completedAt: new Date() } });
       }
     } finally { this.busy = false; }
   }
