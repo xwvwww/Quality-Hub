@@ -13,7 +13,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { if (session.get()) router.replace('/dashboard'); }, [router]);
+  useEffect(() => { router.prefetch('/dashboard'); if (session.get()) router.replace('/dashboard'); }, [router]);
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError('');
