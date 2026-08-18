@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ReportJobStatus } from '@prisma/client';
+import { stat } from 'fs/promises';
+import { resolve, sep } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGeneratedReportDto, GeneratedReportQueryDto } from './generated-reports.dto';
 
@@ -38,5 +40,16 @@ export class GeneratedReportsService {
     const report = await this.prisma.generatedReport.findFirst({ where: { id, organizationId }, select: reportSelect });
     if (!report) throw new NotFoundException('Отчёт не найден');
     return report;
+  }
+
+  async file(organizationId: string, id: string) {
+    const report = await this.prisma.generatedReport.findFirst({ where: { id, organizationId, status: ReportJobStatus.COMPLETED } });
+    if (!report?.storageKey || !report.fileName || !report.mimeType) throw new NotFoundException('Готовый отчёт не найден');
+    if (report.expiresAt && report.expiresAt <= new Date()) throw new NotFoundException('Срок хранения отчёта истёк');
+    const root = resolve(process.env.UPLOAD_DIR ?? 'uploads');
+    const path = resolve(root, report.storageKey);
+    if (!path.startsWith(`${root}${sep}`)) throw new NotFoundException('Файл отчёта не найден');
+    await stat(path).catch(() => { throw new NotFoundException('Файл отчёта не найден'); });
+    return { path, fileName: report.fileName, mimeType: report.mimeType };
   }
 }
