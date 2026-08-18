@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { basename, resolve } from 'path';
 
@@ -21,6 +22,7 @@ async function bootstrap() {
   }
   app.setGlobalPrefix('api');
   app.use(helmet());
+  app.use(compression({ threshold: 1024 }));
   app.use(cookieParser());
   app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:3000', credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

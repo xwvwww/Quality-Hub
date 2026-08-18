@@ -1,1 +1,72 @@
-import{Injectable,NotFoundException}from'@nestjs/common';import{RunStatus}from'@prisma/client';import{PrismaService}from'../prisma/prisma.service';@Injectable()export class PlanReportsService{constructor(private prisma:PrismaService){}async get(org:string,id:string){const plan=await this.prisma.testPlan.findFirst({where:{id,project:{organizationId:org}},include:{project:{select:{id:true,code:true,name:true}},cases:{orderBy:{position:'asc'},include:{testCase:{include:{versions:{orderBy:{version:'desc'},take:1,include:{steps:{orderBy:[{section:'asc'},{position:'asc'}]}}}}}}},runs:{orderBy:{createdAt:'desc'},take:1,include:{cases:{include:{results:{orderBy:{createdAt:'desc'},take:1}}}}}}});if(!plan)throw new NotFoundException('Тест-план не найден');const run=plan.runs[0]??null,runByCase=new Map(run?.cases.map(c=>[c.testCaseId,c])??[]);const defects=run?await this.prisma.defect.findMany({where:{testRunId:run.id},select:{id:true,defectNumber:true,title:true,status:true,priority:true,severity:true,testCaseId:true}}):[];const executorIds=[...new Set((run?.cases.flatMap(c=>c.results.map(r=>r.executedById))??[]))];const users=await this.prisma.user.findMany({where:{id:{in:executorIds}},select:{id:true,firstName:true,lastName:true,email:true}});const cases=plan.cases.map(entry=>{const rc=runByCase.get(entry.testCaseId),latest=rc?.results[0],version=entry.testCase.versions[0];return{id:entry.testCase.id,displayId:`${plan.project.code}-TC-${String(entry.testCase.caseNumber).padStart(4,'0')}`,title:entry.testCase.title,priority:entry.testCase.priority,type:entry.testCase.type,status:rc?.status??RunStatus.NOT_RUN,estimatedDuration:version?.durationSeconds??0,actualDuration:latest?.durationSeconds??0,actualResult:latest?.actualResult??null,comment:latest?.comment??null,executedAt:latest?.createdAt??null,executor:users.find(u=>u.id===latest?.executedById)??null,description:version?.description??null,steps:version?.steps??[],defects:defects.filter(d=>d.testCaseId===entry.testCaseId).map(d=>({...d,displayId:`${plan.project.code}-BUG-${String(d.defectNumber).padStart(4,'0')}`}))}});const counts=Object.fromEntries(Object.values(RunStatus).map(s=>[s,cases.filter(c=>c.status===s).length]));const executed=cases.length-(counts.NOT_RUN??0),estimated=cases.reduce((a,c)=>a+c.estimatedDuration,0),actual=cases.reduce((a,c)=>a+c.actualDuration,0);return{plan:{id:plan.id,name:plan.name,description:plan.description,startsAt:plan.startsAt,endsAt:plan.endsAt,environment:plan.environment,build:plan.build,version:plan.version,createdAt:plan.createdAt,project:plan.project},run:run?{id:run.id,name:run.name,createdAt:run.createdAt,completedAt:run.completedAt}:null,metrics:{total:cases.length,executed,progress:cases.length?Math.round(executed/cases.length*100):0,passRate:executed?Math.round((counts.PASSED??0)/executed*100):0,estimatedDuration:estimated,actualDuration:actual,defects:defects.length,...counts},cases,generatedAt:new Date()}}}
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { RunStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class PlanReportsService {
+  constructor(private prisma: PrismaService) {}
+
+  async get(organizationId: string, id: string) {
+    const plan = await this.prisma.testPlan.findFirst({
+      where: { id, project: { organizationId } },
+      include: {
+        project: { select: { id: true, code: true, name: true } },
+        cases: { orderBy: { position: 'asc' }, include: { testCase: { include: { versions: { orderBy: { version: 'desc' }, take: 1, include: { steps: { orderBy: [{ section: 'asc' }, { position: 'asc' }] } } } } } } },
+        runs: { orderBy: { createdAt: 'desc' }, take: 1, include: { cases: { include: { results: { orderBy: { createdAt: 'desc' }, take: 1 } } } } },
+      },
+    });
+    if (!plan) throw new NotFoundException('Тест-план не найден');
+
+    const run = plan.runs[0] ?? null;
+    const runByCase = new Map(run?.cases.map((item) => [item.testCaseId, item]) ?? []);
+    const defects = run ? await this.prisma.defect.findMany({ where: { testRunId: run.id }, select: { id: true, defectNumber: true, title: true, status: true, priority: true, severity: true, testCaseId: true } }) : [];
+    const defectsByCase = new Map<string, typeof defects>();
+    for (const defect of defects) {
+      if (!defect.testCaseId) continue;
+      const group = defectsByCase.get(defect.testCaseId) ?? [];
+      group.push(defect);
+      defectsByCase.set(defect.testCaseId, group);
+    }
+    const executorIds = [...new Set(run?.cases.flatMap((item) => item.results.map((result) => result.executedById)) ?? [])];
+    const users = await this.prisma.user.findMany({ where: { id: { in: executorIds } }, select: { id: true, firstName: true, lastName: true, email: true } });
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const counts = Object.fromEntries(Object.values(RunStatus).map((status) => [status, 0])) as Record<RunStatus, number>;
+    let estimatedDuration = 0;
+    let actualDuration = 0;
+
+    const cases = plan.cases.map((entry) => {
+      const runCase = runByCase.get(entry.testCaseId);
+      const latest = runCase?.results[0];
+      const version = entry.testCase.versions[0];
+      const status = runCase?.status ?? RunStatus.NOT_RUN;
+      counts[status]++;
+      estimatedDuration += version?.durationSeconds ?? 0;
+      actualDuration += latest?.durationSeconds ?? 0;
+      return {
+        id: entry.testCase.id,
+        displayId: `${plan.project.code}-TC-${String(entry.testCase.caseNumber).padStart(4, '0')}`,
+        title: entry.testCase.title,
+        priority: entry.testCase.priority,
+        type: entry.testCase.type,
+        status,
+        estimatedDuration: version?.durationSeconds ?? 0,
+        actualDuration: latest?.durationSeconds ?? 0,
+        actualResult: latest?.actualResult ?? null,
+        comment: latest?.comment ?? null,
+        executedAt: latest?.createdAt ?? null,
+        executor: latest ? usersById.get(latest.executedById) ?? null : null,
+        description: version?.description ?? null,
+        steps: version?.steps ?? [],
+        defects: (defectsByCase.get(entry.testCaseId) ?? []).map((defect) => ({ ...defect, displayId: `${plan.project.code}-BUG-${String(defect.defectNumber).padStart(4, '0')}` })),
+      };
+    });
+    const executed = cases.length - counts.NOT_RUN;
+    return {
+      plan: { id: plan.id, name: plan.name, description: plan.description, startsAt: plan.startsAt, endsAt: plan.endsAt, environment: plan.environment, build: plan.build, version: plan.version, createdAt: plan.createdAt, project: plan.project },
+      run: run ? { id: run.id, name: run.name, createdAt: run.createdAt, completedAt: run.completedAt } : null,
+      metrics: { total: cases.length, executed, progress: cases.length ? Math.round(executed / cases.length * 100) : 0, passRate: executed ? Math.round(counts.PASSED / executed * 100) : 0, estimatedDuration, actualDuration, defects: defects.length, ...counts },
+      cases,
+      generatedAt: new Date(),
+    };
+  }
+}

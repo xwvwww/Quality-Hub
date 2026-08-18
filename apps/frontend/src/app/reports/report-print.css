@@ -1,8 +1,14 @@
+main details {
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
+}
+
 @media print {
   @page { size: A3 portrait; margin: 14mm; }
   body { background: white !important; color: #172033 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .card { box-shadow: none !important; break-inside: avoid; }
   details { break-inside: avoid; }
+  main details { content-visibility: visible; contain-intrinsic-size: auto; }
   details > summary { list-style: none; }
   details:not([open]) > *:not(summary) { display: block; }
   main { max-width: none !important; width: 100% !important; padding: 0 !important; }
