@@ -377,6 +377,7 @@ model TestRunCase {
   defects    Defect[]
 
   @@unique([testRunId, testCaseId])
+  @@index([testRunId, status, position])
 }
 
 model TestResult {
@@ -389,6 +390,8 @@ model TestResult {
   executedById    String      @db.Uuid
   createdAt       DateTime    @default(now())
   runCase         TestRunCase @relation(fields: [runCaseId], references: [id], onDelete: Cascade)
+
+  @@index([runCaseId, createdAt])
 }
 
 model Defect {
