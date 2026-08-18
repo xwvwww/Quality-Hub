@@ -6,7 +6,7 @@ import { Request, Response } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { Roles } from '../auth/roles.decorator';
 import { BufferedUpload, validateUploads } from '../security/upload-validation';
-import { AssignRunCaseDto, CreateTestRunDto, SaveTestResultDto, TestRunQueryDto } from './test-runs.dto';
+import { AssignRunCaseDto, CreateTestRunDto, SaveTestResultDto, TestRunCaseQueryDto, TestRunQueryDto } from './test-runs.dto';
 import { TestRunsService } from './test-runs.service';
 
 type AuthRequest = Request & { user: JwtUser };
@@ -24,9 +24,12 @@ export class TestRunsController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.sendFile(file.path);
   }
+  @Get(':id/overview') overview(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.overview(req.user.organizationId, id); }
+  @Get(':id/cases') cases(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Query() query: TestRunCaseQueryDto) { return this.service.cases(req.user.organizationId, id, query); }
   @Get(':id') detail(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(req.user.organizationId, id); }
   @Post() @Roles(...managers) create(@Req() req: AuthRequest, @Body() dto: CreateTestRunDto) { return this.service.create(req.user.organizationId, req.user.sub, dto); }
   @Post(':id/cases/:runCaseId/results') @Roles(...executors) result(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { return this.service.saveResult(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
+  @Post(':id/cases/:runCaseId/results/fast') @Roles(...executors) fastResult(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { return this.service.saveResultFast(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
   @Post(':id/cases/:runCaseId/attachments') @Roles(...executors) @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 10 * 1024 * 1024 } }))
   upload(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @UploadedFiles() files: BufferedUpload[]) {
