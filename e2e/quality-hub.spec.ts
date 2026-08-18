@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-test('администратор входит и открывает основные разделы', async ({ page }) => {
+test('QA-администратор входит и открывает основные разделы', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   await page.goto('/');
-  await page.locator('input[type="email"]').fill('admin@example.com');
+  await page.locator('input[type="email"]').fill('qa@example.com');
   await page.locator('input[type="password"]').fill('Admin123!');
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/dashboard/);
@@ -22,7 +22,7 @@ test('администратор входит и открывает основн
 });
 
 test('обрабатывает параллельные запросы сводки', async ({ request }) => {
-  const login = await request.post('/api/auth/login', { data: { email: 'admin@example.com', password: 'Admin123!' } });
+  const login = await request.post('/api/auth/login', { data: { email: 'qa@example.com', password: 'Admin123!' } });
   expect(login.ok()).toBe(true);
   const { accessToken } = await login.json();
   const started = performance.now();

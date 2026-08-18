@@ -8,7 +8,7 @@ async function main() {
     throw new Error('Demo seed is disabled in production. Set ALLOW_DEMO_SEED=true only when explicitly required.');
   }
   const passwordHash = await argon2.hash('Admin123!');
-  const user = await prisma.user.upsert({
+  const systemAdmin = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
     update: { isSystemAdmin: true },
     create: { email: 'admin@example.com', username: 'admin', firstName: 'Alnur', lastName: 'Almen', passwordHash, isSystemAdmin: true },
@@ -19,16 +19,26 @@ async function main() {
     create: { name: 'Demo QA', slug: 'demo-qa' },
   });
   await prisma.organizationMember.upsert({
-    where: { organizationId_userId: { organizationId: org.id, userId: user.id } },
+    where: { organizationId_userId: { organizationId: org.id, userId: systemAdmin.id } },
+    update: { role: MembershipRole.VIEWER },
+    create: { organizationId: org.id, userId: systemAdmin.id, role: MembershipRole.VIEWER },
+  });
+  const qaAdmin = await prisma.user.upsert({
+    where: { email: 'qa@example.com' },
+    update: { isSystemAdmin: false },
+    create: { email: 'qa@example.com', username: 'qa-admin', firstName: 'QA', lastName: 'Lead', passwordHash, isSystemAdmin: false },
+  });
+  await prisma.organizationMember.upsert({
+    where: { organizationId_userId: { organizationId: org.id, userId: qaAdmin.id } },
     update: { role: MembershipRole.ADMIN },
-    create: { organizationId: org.id, userId: user.id, role: MembershipRole.ADMIN },
+    create: { organizationId: org.id, userId: qaAdmin.id, role: MembershipRole.ADMIN },
   });
   await prisma.project.upsert({
     where: { organizationId_code: { organizationId: org.id, code: 'SKZ' } },
-    update: {},
-    create: { organizationId: org.id, code: 'SKZ', name: 'ScanKZ', description: 'Тестирование системы ScanKZ', ownerId: user.id },
+    update: { ownerId: qaAdmin.id },
+    create: { organizationId: org.id, code: 'SKZ', name: 'ScanKZ', description: 'Тестирование системы ScanKZ', ownerId: qaAdmin.id },
   });
-  console.log('Seed complete: admin@example.com / Admin123!');
+  console.log('Seed complete');
 }
 
 main().finally(() => prisma.$disconnect());
