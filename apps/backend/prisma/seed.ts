@@ -4,6 +4,9 @@ import * as argon2 from 'argon2';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED !== 'true') {
+    throw new Error('Demo seed is disabled in production. Set ALLOW_DEMO_SEED=true only when explicitly required.');
+  }
   const passwordHash = await argon2.hash('Admin123!');
   const user = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
