@@ -54,7 +54,8 @@ export class AuthService {
     const claims = { sub, email, organizationId, role };
     const accessToken = await this.jwt.signAsync(claims, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: (process.env.ACCESS_TOKEN_TTL ?? '15m') as never });
     const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7);
-    const refreshToken = await this.jwt.signAsync({ sub, familyId }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: `${days}d` as never });
+    // jti makes every rotated token unique even when two tokens are issued in the same second.
+    const refreshToken = await this.jwt.signAsync({ sub, familyId, jti: randomUUID() }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: `${days}d` as never });
     await this.prisma.refreshToken.create({ data: { userId: sub, tokenHash: this.hash(refreshToken), familyId, expiresAt: new Date(Date.now() + days * 86_400_000) } });
     return { accessToken, refreshToken, user: { id: sub, email, organizationId, role } };
   }
