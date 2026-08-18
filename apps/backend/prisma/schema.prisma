@@ -90,6 +90,18 @@ enum RequirementStatus {
   DEPRECATED
 }
 
+enum ReportJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReportFormat {
+  PDF
+  JSON
+}
+
 model User {
   id            String               @id @default(uuid()) @db.Uuid
   email         String               @unique @db.VarChar(255)
@@ -110,6 +122,7 @@ model User {
   comments      Comment[]
   notifications Notification[]
   auditLogs     AuditLog[]
+  requestedReports GeneratedReport[]
 }
 
 model Organization {
@@ -122,6 +135,7 @@ model Organization {
   projects  Project[]
   tags      Tag[]
   auditLogs AuditLog[]
+  generatedReports GeneratedReport[]
 }
 
 model OrganizationMember {
@@ -293,6 +307,35 @@ model TestPlan {
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   cases       TestPlanCase[]
   runs        TestRun[]
+  generatedReports GeneratedReport[]
+}
+
+model GeneratedReport {
+  id                 String          @id @default(uuid()) @db.Uuid
+  organizationId     String          @db.Uuid
+  testPlanId         String          @db.Uuid
+  requestedById      String          @db.Uuid
+  status             ReportJobStatus @default(QUEUED)
+  format             ReportFormat    @default(PDF)
+  includeAttachments Boolean         @default(true)
+  progress           Int             @default(0)
+  fileName           String?
+  storageKey         String?         @unique
+  mimeType           String?
+  size               Int?
+  error              String?
+  snapshot           Json?
+  createdAt          DateTime        @default(now())
+  startedAt          DateTime?
+  completedAt        DateTime?
+  expiresAt          DateTime?
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  testPlan           TestPlan        @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  requestedBy        User            @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+  @@index([testPlanId, createdAt])
+  @@index([requestedById, createdAt])
 }
 
 model TestPlanCase {
