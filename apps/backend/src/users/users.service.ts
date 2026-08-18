@@ -45,7 +45,12 @@ export class UsersService {
       if (body.role && body.role !== membership.role) await tx.organizationMember.update({ where: { organizationId_userId: { organizationId: actor.organizationId, userId: id } }, data: { role: body.role } });
       const updated = await tx.user.update({ where: { id }, data: { firstName: body.firstName?.trim(), lastName: body.lastName?.trim(), isActive: body.isActive }, select: { id: true, email: true, username: true, firstName: true, lastName: true, isActive: true } });
       if (body.isActive === false) await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
-      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_UPDATED', entityType: 'USER', entityId: id, metadata: { previousRole: membership.role, ...body }, ipAddress: RequestContext.ip() } });
+      const changes: Record<string, { from: Prisma.InputJsonValue; to: Prisma.InputJsonValue }> = {};
+      if (body.firstName !== undefined && body.firstName.trim() !== membership.user.firstName) changes.firstName = { from: membership.user.firstName, to: body.firstName.trim() };
+      if (body.lastName !== undefined && body.lastName.trim() !== membership.user.lastName) changes.lastName = { from: membership.user.lastName, to: body.lastName.trim() };
+      if (body.isActive !== undefined && body.isActive !== membership.user.isActive) changes.isActive = { from: membership.user.isActive, to: body.isActive };
+      if (body.role !== undefined && body.role !== membership.role) changes.role = { from: membership.role, to: body.role };
+      await tx.auditLog.create({ data: { organizationId: actor.organizationId, userId: actor.sub, action: 'USER_UPDATED', entityType: 'USER', entityId: id, metadata: { changes }, ipAddress: RequestContext.ip() } });
       return { ...updated, role: body.role ?? membership.role };
     });
   }
