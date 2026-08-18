@@ -1,2 +1,1 @@
-import Link from 'next/link'; import { History, ShieldCheck } from 'lucide-react';
-export default function Layout({children}:{children:React.ReactNode}){return <>{children}<div className="fixed right-8 bottom-8 z-40 flex gap-2"><Link href="/administration/audit" className="btn-secondary bg-[var(--panel)] no-underline flex gap-2"><History size={18}/>Аудит</Link><Link href="/administration/project-access" className="btn no-underline flex gap-2"><ShieldCheck size={18}/>Права проектов</Link></div></>}
+export default function Layout({ children }: { children: React.ReactNode }) { return children; }
