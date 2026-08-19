@@ -38,7 +38,7 @@ export class TestPlansService {
     if (dto.folderId) { const folder = await this.prisma.testCaseFolder.findFirst({ where: { id: dto.folderId, projectId: plan.projectId } }); if (!folder) throw new NotFoundException('Папка не найдена'); const folderIds = await this.descendants(plan.projectId, folder.id); const folderCases = await this.prisma.testCase.findMany({ where: { projectId: plan.projectId, folderId: { in: folderIds } }, select: { id: true } }); ids.push(...folderCases.map(item => item.id)); }
     if (dto.priority) { const priorityCases = await this.prisma.testCase.findMany({ where: { projectId: plan.projectId, priority: dto.priority }, select: { id: true } }); ids.push(...priorityCases.map(item => item.id)); }
     ids = [...new Set(ids)]; if (!ids.length) throw new BadRequestException('Не выбраны тест-кейсы');
-    const valid = await this.prisma.testCase.findMany({ where: { id: { in: ids }, projectId: plan.projectId }, select: { id: true } }); if (valid.length !== ids.length) throw new NotFoundException('Часть тест-кейсов не найдена в проекте плана');
+    const valid = await this.prisma.testCase.findMany({ where: { id: { in: ids }, projectId: plan.projectId }, orderBy: { caseNumber: 'asc' }, select: { id: true } }); if (valid.length !== ids.length) throw new NotFoundException('Часть тест-кейсов не найдена в проекте плана');
     const currentMax = await this.prisma.testPlanCase.aggregate({ where: { testPlanId: id }, _max: { position: true } }); const start = (currentMax._max.position ?? -1) + 1;
     await this.prisma.testPlanCase.createMany({ data: valid.map((item, index) => ({ testPlanId: id, testCaseId: item.id, position: start + index })), skipDuplicates: true });
     return this.detail(organizationId, id);
