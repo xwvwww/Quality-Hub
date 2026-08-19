@@ -1,1 +1,3 @@
-'use client';import{useParams}from'next/navigation';import{RunAssist}from'@/components/run-assist';export default function Layout({children}:{children:React.ReactNode}){const{id}=useParams<{id:string}>();return <>{children}<RunAssist runId={id}/></>}
+export default function TestRunLayout({ children }: { children: React.ReactNode }) {
+  return children;
+}
