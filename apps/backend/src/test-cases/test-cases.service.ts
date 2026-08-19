@@ -43,7 +43,12 @@ export class TestCasesService {
 
   async create(organizationId: string, projectId: string, authorId: string, role: MembershipRole, dto: CreateTestCaseDto) {
     const project = await this.project(organizationId, projectId, authorId, role); if (dto.folderId) await this.folder(projectId, dto.folderId);
-    return this.prisma.$transaction(async tx => { const counter = await tx.project.update({ where: { id: projectId }, data: { nextTestCaseNumber: { increment: 1 } }, select: { nextTestCaseNumber: true } }); const caseNumber = counter.nextTestCaseNumber - 1; const item = await tx.testCase.create({ data: { projectId, folderId: dto.folderId ?? null, caseNumber, title: dto.title.trim(), priority: dto.priority, severity: dto.severity, type: dto.type, authorId, versions: { create: { version: 1, description: dto.description?.trim() || null, durationSeconds: dto.durationSeconds, createdById: authorId, steps: { create: this.sectionSteps(dto.preconditionSteps, dto.steps, dto.postconditionSteps) } } } }, select: caseSelect }); return { ...item, displayId: this.displayId(project.code, caseNumber) }; });
+    return this.prisma.$transaction(async tx => {
+      const counter = await tx.project.update({ where: { id: projectId }, data: { nextTestCaseNumber: { increment: 1 } }, select: { nextTestCaseNumber: true } });
+      const caseNumber = counter.nextTestCaseNumber - 1;
+      const item = await tx.testCase.create({ data: { projectId, folderId: dto.folderId ?? null, caseNumber, title: dto.title.trim(), status: dto.status, priority: dto.priority, severity: dto.severity, type: dto.type, authorId, versions: { create: { version: 1, description: dto.description?.trim() || null, durationSeconds: dto.durationSeconds, createdById: authorId, steps: { create: this.sectionSteps(dto.preconditionSteps, dto.steps, dto.postconditionSteps) } } } }, select: caseSelect });
+      return { ...item, displayId: this.displayId(project.code, caseNumber) };
+    });
   }
 
   async update(organizationId: string, id: string, userId: string, role: MembershipRole, dto: UpdateTestCaseDto) {

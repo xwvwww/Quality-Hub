@@ -32,6 +32,8 @@ export class CreateTestCaseDto {
   folderId?: string;
   @IsOptional() @IsString() @MaxLength(10000)
   description?: string;
+  @IsOptional() @IsEnum(TestCaseStatus)
+  status: TestCaseStatus = TestCaseStatus.READY;
   @IsOptional() @IsEnum(Priority)
   priority: Priority = Priority.MEDIUM;
   @IsOptional() @IsEnum(Severity)
