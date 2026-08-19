@@ -32,7 +32,7 @@ export class GeneratedReportsWorker implements OnModuleInit, OnModuleDestroy {
       const claimed = await this.prisma.generatedReport.updateMany({ where: { id: job.id, status: ReportJobStatus.QUEUED }, data: { status: ReportJobStatus.PROCESSING, progress: 10, startedAt: new Date(), error: null } });
       if (claimed.count !== 1) return;
       try {
-        const snapshot = await this.reports.get(job.organizationId, job.testPlanId);
+        const snapshot = await this.reports.get(job.organizationId, job.testPlanId, job.failedOnly);
         await this.prisma.generatedReport.update({ where: { id: job.id }, data: { progress: 45 } });
         const printable = job.format === ReportFormat.PDF && job.includeAttachments ? await this.withAttachments(snapshot, job.organizationId) : snapshot;
         const buffer = job.format === ReportFormat.PDF ? await this.documents.pdf(printable) : Buffer.from(JSON.stringify(snapshot, null, 2), 'utf8');

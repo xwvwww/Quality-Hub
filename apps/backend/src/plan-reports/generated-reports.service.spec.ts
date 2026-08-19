@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ReportFormat } from '@prisma/client';
 import { GeneratedReportsService } from './generated-reports.service';
 
-const dto = { testPlanId: '00000000-0000-4000-8000-000000000001', format: ReportFormat.PDF, includeAttachments: true };
+const dto = { testPlanId: '00000000-0000-4000-8000-000000000001', format: ReportFormat.PDF, includeAttachments: true, failedOnly: false };
 
 describe('GeneratedReportsService', () => {
   it('does not queue a report for another tenant plan', async () => {

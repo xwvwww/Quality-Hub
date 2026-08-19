@@ -6,6 +6,7 @@ export class CreateGeneratedReportDto {
   @IsUUID() testPlanId!: string;
   @IsOptional() @IsEnum(ReportFormat) format: ReportFormat = ReportFormat.PDF;
   @IsOptional() @IsBoolean() includeAttachments = true;
+  @IsOptional() @IsBoolean() failedOnly = false;
 }
 
 export class GeneratedReportQueryDto {

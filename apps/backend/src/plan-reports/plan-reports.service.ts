@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PlanReportsService {
   constructor(private prisma: PrismaService) {}
 
-  async get(organizationId: string, id: string) {
+  async get(organizationId: string, id: string, failedOnly = false) {
     const plan = await this.prisma.testPlan.findFirst({
       where: { id, project: { organizationId } },
       include: {
@@ -65,7 +65,8 @@ export class PlanReportsService {
       plan: { id: plan.id, name: plan.name, description: plan.description, startsAt: plan.startsAt, endsAt: plan.endsAt, environment: plan.environment, build: plan.build, version: plan.version, createdAt: plan.createdAt, project: plan.project },
       run: run ? { id: run.id, name: run.name, createdAt: run.createdAt, completedAt: run.completedAt } : null,
       metrics: { total: cases.length, executed, progress: cases.length ? Math.round(executed / cases.length * 100) : 0, passRate: executed ? Math.round(counts.PASSED / executed * 100) : 0, estimatedDuration, actualDuration, defects: defects.length, ...counts },
-      cases,
+      cases: failedOnly ? cases.filter((testCase) => testCase.status === RunStatus.FAILED) : cases,
+      scope: failedOnly ? 'FAILED_ONLY' : 'ALL',
       generatedAt: new Date(),
     };
   }

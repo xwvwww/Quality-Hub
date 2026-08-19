@@ -321,6 +321,7 @@ model GeneratedReport {
   status             ReportJobStatus @default(QUEUED)
   format             ReportFormat    @default(PDF)
   includeAttachments Boolean         @default(true)
+  failedOnly         Boolean         @default(false)
   progress           Int             @default(0)
   fileName           String?
   storageKey         String?         @unique
