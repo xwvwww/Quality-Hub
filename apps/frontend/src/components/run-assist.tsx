@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Clock3, Pause, Play, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, Pause, Play, RotateCcw } from 'lucide-react';
 
 function format(total: number) {
   const hours = Math.floor(total / 3600), minutes = Math.floor(total % 3600 / 60), seconds = total % 60;
@@ -90,15 +90,17 @@ export function RunAssist({ runId }: { runId: string }) {
     return () => { observer.disconnect(); document.removeEventListener('input', input); removeEventListener('keydown', key); saveDraft(); };
   }, []);
 
-  return <aside className="fixed right-4 top-1/2 -translate-y-1/2 z-40 card p-2 shadow-2xl w-16 flex flex-col items-center gap-2" aria-label="Таймер тестирования">
-    <div className="w-12 min-h-12 rounded-xl bg-indigo-50 text-brand grid place-items-center px-1" title="Время выполнения текущего кейса">
-      <Clock3 size={16} />
-      <b className="font-mono text-[11px] whitespace-nowrap">{format(seconds)}</b>
+  return <aside className="absolute bottom-6 right-6 z-40 card p-3 shadow-2xl min-w-72" aria-label="Таймер тестирования">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex gap-2 items-center"><Clock3 className="text-brand" size={18} /><b className="font-mono">{format(seconds)}</b></div>
+      <div className="flex">
+        <button className="icon-btn" title="Предыдущий кейс (←)" onClick={() => navigate(-1)}><ChevronLeft size={17} /></button>
+        <button className="icon-btn" title={running ? 'Пауза' : 'Продолжить'} onClick={() => setRunning(!running)}>{running ? <Pause size={17} /> : <Play size={17} />}</button>
+        <button className="icon-btn" title="Сбросить таймер" onClick={() => setSeconds(0)}><RotateCcw size={17} /></button>
+        <button className="icon-btn" title="Следующий кейс (→)" onClick={() => navigate(1)}><ChevronRight size={17} /></button>
+      </div>
     </div>
-    <button className="icon-btn" title="Предыдущий кейс (←)" onClick={() => navigate(-1)}><ChevronUp size={19} /></button>
-    <button className="icon-btn bg-indigo-50 text-brand" title={running ? 'Пауза' : 'Продолжить'} onClick={() => setRunning(!running)}>{running ? <Pause size={19} /> : <Play size={19} />}</button>
-    <button className="icon-btn" title="Сбросить таймер" onClick={() => setSeconds(0)}><RotateCcw size={18} /></button>
-    <button className="icon-btn" title="Следующий кейс (→)" onClick={() => navigate(1)}><ChevronDown size={19} /></button>
-    {hint && <div className="absolute right-20 top-1/2 -translate-y-1/2 card px-3 py-2 text-xs text-green-600 whitespace-nowrap shadow-xl">{hint}</div>}
+    <div className="text-[10px] text-muted mt-2">P — Passed · F — Failed · B — Blocked · ← → навигация</div>
+    {hint && <div className="text-xs text-green-600 mt-1">{hint}</div>}
   </aside>;
 }
