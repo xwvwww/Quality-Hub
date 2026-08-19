@@ -19,21 +19,36 @@ export class ReportDocumentBuilder {
   async pdf(snapshot:ReportSnapshot):Promise<Buffer>{
     const m=snapshot.metrics;
     const metric=(label:string,value:string,hint:string):Content=>({table:{widths:['*'],body:[[{stack:[{text:label,color:'#64748b',fontSize:9},{text:value,bold:true,fontSize:23,margin:[0,8,0,3]},{text:hint,color:'#64748b',fontSize:8}],fillColor:'#ffffff',margin:[14,13,14,13]}]]},layout:{hLineColor:()=> '#dbe3f0',vLineColor:()=> '#dbe3f0',hLineWidth:()=>1,vLineWidth:()=>1}});
-    const caseBlocks:Content[]=snapshot.cases.map((testCase,index)=>{
+    const caseBlocks:Content[]=snapshot.cases.map((testCase)=>{
       const stepBlocks:Content[]=['PRECONDITION','ACTION','POSTCONDITION'].flatMap((kind)=>{
         const steps=testCase.steps.filter((item)=>item.section===kind);
-        return [{text:section(kind),bold:true,fontSize:9,margin:[0,7,0,3]},...(steps.length?steps.map((step,i)=>({columns:[{text:String(i+1),width:20,bold:true,color:'#6366f1'},{text:step.action,width:'*'},{text:step.expectedResult||'—',width:'*',color:'#475569'}],columnGap:8,margin:[0,2,0,2]} as Content)):[{text:'—',color:'#94a3b8'} as Content])];
+        return [
+          {text:section(kind),bold:true,fontSize:9,color:'#334155',margin:[0,9,0,4]},
+          {table:{headerRows:1,dontBreakRows:true,widths:[24,'*','*'],body:[
+            [{text:'#',bold:true,color:'#64748b'},{text:'Действие',bold:true,color:'#64748b'},{text:'Ожидаемый результат',bold:true,color:'#64748b'}],
+            ...(steps.length?steps.map((step,i)=>[
+              {text:String(i+1),bold:true,color:'#4f46e5'},
+              {text:step.action},
+              {text:step.expectedResult||'—',color:'#475569'},
+            ]):[[{text:'—',color:'#94a3b8'},{text:'Нет шагов',color:'#94a3b8',colSpan:2},{}]])
+          ]},layout:{fillColor:(row)=>row===0?'#f1f5f9':row%2===0?'#fafbff':'#ffffff',hLineColor:()=> '#e2e8f0',vLineColor:()=> '#e2e8f0',hLineWidth:()=>.6,vLineWidth:()=>.6,paddingLeft:()=>7,paddingRight:()=>7,paddingTop:()=>5,paddingBottom:()=>5}} as Content,
+        ];
       });
       const attachments:Content[]=(testCase.attachments??[]).flatMap((file)=>[{image:file.dataUrl,fit:[430,260],alignment:'left',margin:[0,6,0,3]},{text:file.fileName,fontSize:8,color:'#64748b',margin:[0,0,0,5]}]);
       const body:Content[]=[
         {columns:[{stack:[{text:testCase.displayId,bold:true,color:'#4f46e5',fontSize:10},{text:testCase.title,bold:true,fontSize:12,margin:[0,3,0,0]}],width:'*'},{text:statusLabels[testCase.status]??testCase.status,color:statusColors[testCase.status],bold:true,alignment:'center',width:105},{text:`◷ ${duration(testCase.actualDuration)} / ${duration(testCase.estimatedDuration)}`,alignment:'right',width:105,fontSize:8}],columnGap:10},
-        {columns:[{text:`Тип\n${testCase.type}`,width:'33%'},{text:`Приоритет\n${priorityLabels[testCase.priority]??testCase.priority}`,width:'33%'},{text:`Исполнитель\n${testCase.executor?`${testCase.executor.firstName} ${testCase.executor.lastName}`:'—'}`,width:'34%'}],fontSize:8,color:'#475569',margin:[0,12,0,2]},
+        {columns:[
+          {table:{widths:['*'],body:[[{stack:[{text:'ТИП',fontSize:7,color:'#64748b'},{text:testCase.type,bold:true,color:'#0369a1',margin:[0,3,0,0]}],fillColor:'#f0f9ff',margin:[8,6,8,6]}]]},layout:'noBorders',width:'31%'},
+          {table:{widths:['*'],body:[[{stack:[{text:'ПРИОРИТЕТ',fontSize:7,color:'#64748b'},{text:priorityLabels[testCase.priority]??testCase.priority,bold:true,color:testCase.priority==='HIGHEST'?'#b91c1c':testCase.priority==='HIGH'?'#c2410c':'#6d28d9',margin:[0,3,0,0]}],fillColor:testCase.priority==='HIGHEST'?'#fff1f2':testCase.priority==='HIGH'?'#fff7ed':'#f5f3ff',margin:[8,6,8,6]}]]},layout:'noBorders',width:'31%'},
+          {table:{widths:['*'],body:[[{stack:[{text:'ИСПОЛНИТЕЛЬ',fontSize:7,color:'#64748b'},{text:testCase.executor?`${testCase.executor.firstName} ${testCase.executor.lastName}`:'—',bold:true,color:'#047857',margin:[0,3,0,0]}],fillColor:'#ecfdf5',margin:[8,6,8,6]}]]},layout:'noBorders',width:'38%'},
+        ],columnGap:8,margin:[0,10,0,2]},
         ...(testCase.description?[{text:testCase.description,margin:[0,7,0,2]} as Content]:[]),...stepBlocks,
         ...(testCase.actualResult||testCase.comment?[{table:{widths:['*'],body:[[{stack:[{text:'Фактический результ',bold:true},{text:testCase.actualResult||'—',margin:[0,3,0,0]},...(testCase.comment?[{text:`Комментарий: ${testCase.comment}`,color:'#64748b',margin:[0,3,0,0]}]:[])],fillColor:testCase.status==='FAILED'?'#fff1f2':'#f8fafc',margin:[9,7,9,7]}]]},layout:'noBorders',margin:[0,7,0,2]} as Content]:[]),
         ...(testCase.defects.length?[{text:`Дефекты: ${testCase.defects.map((item)=>`${item.displayId} · ${item.title}`).join('; ')}`,color:'#b91c1c',margin:[0,6,0,2]} as Content]:[]),
         ...(attachments.length?[{text:'Вложения и подтверждения',bold:true,fontSize:10,margin:[0,9,0,2]} as Content,...attachments]:[]),
       ];
-      return {table:{widths:['*'],body:[[{stack:body,fillColor:'#ffffff',margin:[14,13,14,13]}]]},layout:{hLineColor:()=>testCase.status==='FAILED'?'#fecaca':'#dbe3f0',vLineColor:()=>testCase.status==='FAILED'?'#fecaca':'#dbe3f0',hLineWidth:()=>1,vLineWidth:()=>1},margin:[0,0,0,10],pageBreak:index&&index%10===0?'before':undefined};
+      const card={table:{dontBreakRows:true,widths:['*'],body:[[{stack:body,fillColor:'#ffffff',margin:[14,13,14,13]}]]},layout:{hLineColor:()=>testCase.status==='FAILED'?'#fecaca':'#dbe3f0',vLineColor:()=>testCase.status==='FAILED'?'#fecaca':'#dbe3f0',hLineWidth:()=>1,vLineWidth:()=>1},margin:[0,0,0,10]} as Content;
+      return testCase.steps.length<=14&&!attachments.length?({stack:[card],unbreakable:true} as unknown as Content):card;
     });
     const doc:TDocumentDefinitions={
       pageSize:'A3',pageOrientation:'portrait',pageMargins:[48,48,48,46],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a',lineHeight:1.15},

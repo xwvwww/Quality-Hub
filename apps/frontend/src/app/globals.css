@@ -7,43 +7,5 @@
 .field.w-64,.field.min-w-56{width:16rem;max-width:100%}.dark article .relative.h-56.bg-gradient-to-b{background:linear-gradient(to bottom,#252947,#151824 85%)}.dark article .relative.h-56 .border-dashed{border-color:#394158}
 .workspace-header-tools>.fixed:first-child{position:static;inset:auto}.workspace-header-tools .icon-btn{height:2.5rem;width:2.5rem}.workspace-header-tools>.fixed.inset-0{position:fixed;inset:0}.audit-unified>section.card.overflow-hidden:not(.mt-4){display:none}.grid.sm\:grid-cols-2.xl\:grid-cols-5 article>strong+span{display:none}
 main.max-w-5xl form.card{padding:2rem}main.max-w-5xl form.card>h2{margin-bottom:1.75rem}main.max-w-5xl form.card>p{margin-bottom:1.5rem;line-height:1.6}main.max-w-3xl form.card{padding:2rem}main.max-w-3xl form.card>h2{margin-top:0;margin-bottom:1.75rem}main.max-w-3xl form.card>h2.border-t{margin-top:2rem;padding-top:2rem}.route-enter{animation:route-enter .24s ease-out both}@keyframes route-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.route-enter{animation:none}}
-/* Test execution: keep result actions visible in a compact side rail. */
-main article.card.p-6:has(> .mt-4 > button[style*="background"]) {
-  position: relative;
-  padding-right: 13rem;
-  min-height: 25rem;
-}
-
-main article.card.p-6 > .mt-4:has(> button[style*="background"]) {
-  position: absolute;
-  right: 1.5rem;
-  bottom: 1.5rem;
-  width: 10.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.5rem;
-  margin-top: 0;
-}
-
-main article.card.p-6 > .mt-4:has(> button[style*="background"]) > button {
-  width: 100%;
-}
-
-@media (max-width: 1100px) {
-  main article.card.p-6:has(> .mt-4 > button[style*="background"]) {
-    padding-right: 1.5rem;
-  }
-
-  main article.card.p-6 > .mt-4:has(> button[style*="background"]) {
-    position: static;
-    width: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    margin-top: 1rem;
-  }
-
-  main article.card.p-6 > .mt-4:has(> button[style*="background"]) > button {
-    width: auto;
-  }
-}
+/* Status actions are rendered by RunAssist beside the step table. */
+main article.card.p-6 > .mt-4:has(> button[style*="background"]) { display: none; }

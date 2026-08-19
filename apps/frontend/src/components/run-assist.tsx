@@ -3,6 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock3, Pause, Play, RotateCcw } from 'lucide-react';
 
+const resultActions = [
+  { label: 'Пройден', shortcut: 'P', tone: 'from-emerald-500 to-green-600' },
+  { label: 'Провален', shortcut: 'F', tone: 'from-rose-500 to-red-600' },
+  { label: 'Заблокирован', shortcut: 'B', tone: 'from-amber-500 to-orange-600' },
+  { label: 'Пропущен', shortcut: 'S', tone: 'from-slate-500 to-slate-600' },
+  { label: 'Ретест', shortcut: 'R', tone: 'from-violet-500 to-purple-600' },
+];
+
 function format(total: number) {
   const hours = Math.floor(total / 3600), minutes = Math.floor(total % 3600 / 60), seconds = total % 60;
   return [hours ? `${hours}h` : '', minutes ? `${minutes}m` : '', `${seconds}s`].filter(Boolean).join(' ');
@@ -18,6 +26,7 @@ export function RunAssist({ runId }: { runId: string }) {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(true);
   const [hint, setHint] = useState('');
+  const [recorded, setRecorded] = useState('');
   const lastCase = useRef('');
 
   function caseButtons() {
@@ -37,8 +46,11 @@ export function RunAssist({ runId }: { runId: string }) {
     const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[style*="background"]')]
       .filter((button) => ['rgb(22, 163, 74)', 'rgb(220, 38, 38)', 'rgb(217, 119, 6)', 'rgb(100, 116, 139)', 'rgb(124, 58, 237)'].includes(button.style.background) || button.style.background.startsWith('#'));
     const duration = [...document.querySelectorAll<HTMLInputElement>('input')].find((input) => input.placeholder.includes('1m'));
-    if (duration && !duration.value) setValue(duration, format(seconds));
-    buttons[index]?.click();
+    const elapsed = duration?.value || format(seconds);
+    if (duration && !duration.value) setValue(duration, elapsed);
+    setRecorded(elapsed);
+    setRunning(false);
+    setTimeout(() => buttons[index]?.click(), 0);
   }
   function saveDraft() {
     const areas = [...document.querySelectorAll<HTMLTextAreaElement>('main textarea')];
@@ -51,6 +63,7 @@ export function RunAssist({ runId }: { runId: string }) {
     saveDraft();
     lastCase.current = key;
     setSeconds(0);
+    setRecorded('');
     setRunning(true);
     const raw = localStorage.getItem(key);
     if (!raw) return;
@@ -90,7 +103,8 @@ export function RunAssist({ runId }: { runId: string }) {
     return () => { observer.disconnect(); document.removeEventListener('input', input); removeEventListener('keydown', key); saveDraft(); };
   }, []);
 
-  return <aside className="absolute bottom-6 right-6 z-40 card p-3 shadow-2xl min-w-72" aria-label="Таймер тестирования">
+  return <>
+  <aside className="fixed bottom-6 right-6 z-40 card p-3 shadow-2xl min-w-72" aria-label="Таймер тестирования">
     <div className="flex items-center justify-between gap-3">
       <div className="flex gap-2 items-center"><Clock3 className="text-brand" size={18} /><b className="font-mono">{format(seconds)}</b></div>
       <div className="flex">
@@ -100,7 +114,12 @@ export function RunAssist({ runId }: { runId: string }) {
         <button className="icon-btn" title="Следующий кейс (→)" onClick={() => navigate(1)}><ChevronRight size={17} /></button>
       </div>
     </div>
-    <div className="text-[10px] text-muted mt-2">P — Passed · F — Failed · B — Blocked · ← → навигация</div>
+    <div className="flex justify-between gap-3 text-[10px] text-muted mt-2"><span>P/F/B/S/R — статус · ← → навигация</span>{recorded && <b className="text-brand">Факт: {recorded}</b>}</div>
     {hint && <div className="text-xs text-green-600 mt-1">{hint}</div>}
-  </aside>;
+  </aside>
+  <aside className="fixed right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 w-44" aria-label="Статус тест-кейса">
+    <span className="text-[11px] font-semibold text-muted text-center mb-1">РЕЗУЛЬТАТ ТЕСТА</span>
+    {resultActions.map((action, index) => <button type="button" key={action.label} onClick={() => status(index)} className={`group text-white border-0 rounded-xl px-4 py-3 bg-gradient-to-r ${action.tone} shadow-lg hover:-translate-x-1 hover:shadow-xl transition-all cursor-pointer flex items-center justify-between gap-3`}><span className="font-semibold">{action.label}</span><kbd className="bg-white/20 rounded-md px-2 py-1 text-[10px]">{action.shortcut}</kbd></button>)}
+  </aside>
+  </>;
 }

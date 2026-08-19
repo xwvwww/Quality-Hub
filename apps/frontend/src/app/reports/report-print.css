@@ -1,13 +1,58 @@
 main details {
   content-visibility: auto;
   contain-intrinsic-size: 320px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+main details > div > .grid.grid-cols-3 > div {
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+main details > div > .grid.grid-cols-3 > div:nth-child(1) b { color: #0369a1; }
+main details > div > .grid.grid-cols-3 > div:nth-child(2) b { color: #047857; }
+main details > div > .grid.grid-cols-3 > div:nth-child(3) b { color: #6d28d9; }
+
+main details > div > .mb-4 > h4 {
+  margin-bottom: 0;
+  padding: 10px 12px;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+}
+
+main details > div > .mb-4 > .grid {
+  margin: 0;
+  border: 1px solid #e2e8f0;
+  border-top: 0;
+  background: white;
+}
+
+main details > div > .mb-4 > .grid:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+main details > div > .mb-4 > .grid:nth-child(odd) {
+  background: #fafbff;
+}
+
+.dark main details > div > .grid.grid-cols-3 > div,
+.dark main details > div > .mb-4 > h4,
+.dark main details > div > .mb-4 > .grid {
+  background: var(--panel);
+  border-color: var(--line);
 }
 
 @media print {
   @page { size: A3 portrait; margin: 14mm; }
   body { background: white !important; color: #172033 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .card { box-shadow: none !important; break-inside: avoid; }
-  details { break-inside: avoid; }
+  details { break-inside: avoid; page-break-inside: avoid; }
   main details { content-visibility: visible; contain-intrinsic-size: auto; }
   details > summary { list-style: none; }
   details:not([open]) > *:not(summary) { display: block; }
