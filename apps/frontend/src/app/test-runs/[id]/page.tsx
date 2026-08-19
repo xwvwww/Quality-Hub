@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -181,6 +181,7 @@ export default function RunExecution() {
     [files, setFiles] = useState<File[]>([]);
   const [elapsed, setElapsed] = useState(0),
     [timerRunning, setTimerRunning] = useState(true);
+  const shortcutRef = useRef({ key: "", at: 0 });
   const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER"].includes(
     session.get()?.user.role ?? "",
   );
@@ -270,6 +271,22 @@ export default function RunExecution() {
       setSaving(false);
     }
   }
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (saving || (event.target as HTMLElement)?.matches("input,textarea,select")) return;
+      const key = event.key.toLowerCase();
+      const statusByKey: Record<string, string> = { p: "PASSED", f: "FAILED", b: "BLOCKED", s: "SKIPPED", r: "RETEST" };
+      if (!statusByKey[key]) return;
+      const now = Date.now();
+      if (shortcutRef.current.key === key && now - shortcutRef.current.at <= 600) {
+        event.preventDefault();
+        shortcutRef.current = { key: "", at: 0 };
+        void save(statusByKey[key]);
+      } else shortcutRef.current = { key, at: now };
+    };
+    addEventListener("keydown", handler);
+    return () => removeEventListener("keydown", handler);
+  }, [saving, item?.id, duration, elapsed, actual, comment, files]);
   if (!run)
     return (
       <AppShell>
