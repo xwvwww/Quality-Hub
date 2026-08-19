@@ -10,6 +10,7 @@ type AuthRequest = Request & { user: JwtUser };
 export class ProfileController {
   constructor(private service: ProfileService) {}
   @Get() get(@Req() req: AuthRequest) { return this.service.get(req.user.organizationId, req.user.sub); }
+  @Get('organization') organization(@Req() req: AuthRequest) { return this.service.organization(req.user.organizationId); }
   @Get('preferences') preferencesGet(@Req() req: AuthRequest) { return this.service.preferences(req.user.sub); }
   @Patch('preferences') preferencesSave(@Req() req: AuthRequest, @Body() dto: UpdatePreferencesDto) { return this.service.preferences(req.user.sub, dto, req.user.organizationId); }
   @Get('sessions') sessions(@Req() req: AuthRequest) { return this.service.sessions(req.user.sub, req.cookies?.quality_hub_refresh); }
