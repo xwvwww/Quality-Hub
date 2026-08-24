@@ -1,3 +1,94 @@
-import{BadRequestException,Injectable,NotFoundException}from'@nestjs/common';import{Priority,TestStepSection,TestType}from'@prisma/client';import ExcelJS from'exceljs';import{PrismaService}from'../prisma/prisma.service';
-type Row={title:string;description:string;priority:Priority;type:TestType;durationSeconds:number;preconditions:string;steps:string;expected:string;postconditions:string};const headers=['Название','Описание','Приоритет','Тип','Продолжительность','Предусловия','Шаги','Ожидаемый результат','Постусловия'];
-@Injectable()export class ImportsService{constructor(private prisma:PrismaService){}async import(org:string,projectId:string,userId:string,file:{originalname:string;buffer:Buffer},commit:boolean){await this.project(org,projectId);if(!file)throw new BadRequestException('Выберите CSV или XLSX файл');const raw=file.originalname.toLowerCase().endsWith('.csv')?this.csv(file.buffer.toString('utf8')):await this.xlsx(file.buffer);if(raw.length>1000)throw new BadRequestException('За один импорт разрешено не более 1000 строк');const rows:Row[]=[],errors:Array<{row:number;message:string}>=[];raw.forEach((r,index)=>{try{rows.push(this.normalize(r))}catch(e){errors.push({row:index+2,message:e instanceof Error?e.message:'Некорректная строка'})}});if(commit&&errors.length)throw new BadRequestException({message:'Исправьте ошибки импорта',errors});if(commit&&rows.length)await this.prisma.$transaction(async tx=>{const p=await tx.project.update({where:{id:projectId},data:{nextTestCaseNumber:{increment:rows.length}},select:{nextTestCaseNumber:true}});const start=p.nextTestCaseNumber-rows.length;for(let i=0;i<rows.length;i++){const r=rows[i],tc=await tx.testCase.create({data:{projectId,caseNumber:start+i,title:r.title,priority:r.priority,type:r.type,authorId:userId,versions:{create:{version:1,description:r.description||null,durationSeconds:r.durationSeconds,createdById:userId}}},include:{versions:true}});const versionId=tc.versions[0].id;const steps=[...this.lines(r.preconditions).map((action,position)=>({versionId,section:TestStepSection.PRECONDITION,position,action,expectedResult:''})),...this.lines(r.steps).map((action,position)=>({versionId,section:TestStepSection.ACTION,position,action,expectedResult:this.lines(r.expected)[position]??''})),...this.lines(r.postconditions).map((action,position)=>({versionId,section:TestStepSection.POSTCONDITION,position,action,expectedResult:''}))];if(steps.length)await tx.testStep.createMany({data:steps})}});return{valid:rows.length,invalid:errors.length,errors,imported:commit?rows.length:0,preview:rows.slice(0,20)}}async export(org:string,projectId:string,format:'csv'|'xlsx'){const{project,rows}=await this.exportRows(org,projectId);if(format==='csv'){const text='\uFEFF'+[headers,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');return{name:`${project.code}-test-cases.csv`,mime:'text/csv; charset=utf-8',buffer:Buffer.from(text)}}const wb=this.book(rows);return{name:`${project.code}-test-cases.xlsx`,mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await wb.xlsx.writeBuffer())}}async template(org:string,projectId:string){await this.project(org,projectId);const wb=this.book([['Проверка авторизации','Позитивный сценарий','HIGH','FUNCTIONAL','1m 30s','Открыть страницу входа','Ввести логин\nВвести пароль\nНажать Войти','Логин принят\nПароль принят\nОткрыта главная страница','Выйти из системы']]);return{mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await wb.xlsx.writeBuffer())}}private async exportRows(org:string,id:string){const project=await this.project(org,id);const items=await this.prisma.testCase.findMany({where:{projectId:id},orderBy:{caseNumber:'asc'},include:{versions:{orderBy:{version:'desc'},take:1,include:{steps:{orderBy:[{section:'asc'},{position:'asc'}]}}}}});return{project,rows:items.map(x=>{const v=x.versions[0],s=v?.steps??[],fmt=(section:TestStepSection,key:'action'|'expectedResult')=>s.filter(y=>y.section===section).map(y=>y[key]).join('\n');return[x.title,v?.description??'',x.priority,x.type,this.duration(v?.durationSeconds??0),fmt(TestStepSection.PRECONDITION,'action'),fmt(TestStepSection.ACTION,'action'),fmt(TestStepSection.ACTION,'expectedResult'),fmt(TestStepSection.POSTCONDITION,'action')]})}}private book(rows:any[][]){const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Тест-кейсы',{views:[{state:'frozen',ySplit:1}]});ws.addRow(headers);rows.forEach(r=>ws.addRow(r));ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF4F46E5'}};ws.columns=[{width:36},{width:42},{width:18},{width:18},{width:20},{width:45},{width:55},{width:55},{width:45}];ws.eachRow(r=>{r.alignment={vertical:'top',wrapText:true}});ws.autoFilter={from:'A1',to:'I1'};return wb}private normalize(r:string[]){const title=(r[0]??'').trim();if(title.length<2||title.length>255)throw new Error('Название обязательно: от 2 до 255 символов');const priority=(r[2]?.trim().toUpperCase()||'MEDIUM')as Priority,type=(r[3]?.trim().toUpperCase()||'FUNCTIONAL')as TestType;if(!Object.values(Priority).includes(priority))throw new Error('Неизвестный приоритет');if(!Object.values(TestType).includes(type))throw new Error('Неизвестный тип теста');return{title,description:r[1]?.trim()??'',priority,type,durationSeconds:this.seconds(r[4]??''),preconditions:r[5]??'',steps:r[6]??'',expected:r[7]??'',postconditions:r[8]??''}}private seconds(v:string){let total=0,found=false;for(const m of v.matchAll(/(\d+)\s*([hms])/gi)){found=true;total+=Number(m[1])*(m[2].toLowerCase()==='h'?3600:m[2].toLowerCase()==='m'?60:1)}if(v.trim()&&!found)throw new Error('Продолжительность: формат 1h 2m 3s');return total}private duration(s:number){return`${Math.floor(s/3600)?`${Math.floor(s/3600)}h `:''}${Math.floor(s%3600/60)?`${Math.floor(s%3600/60)}m `:''}${s%60?`${s%60}s`:''}`.trim()||'0s'}private lines(v:string){return v.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)}private csv(text:string){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);return lines.slice(1).map(line=>{const out:string[]=[];let cur='',quoted=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'){cur+='"';i++}else if(c==='"')quoted=!quoted;else if((c===';'||c===',')&&!quoted){out.push(cur);cur=''}else cur+=c}out.push(cur);return out})}private async xlsx(buffer:Buffer){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buffer as any);const ws=wb.worksheets[0];if(!ws)throw new BadRequestException('В XLSX нет листов');const out:string[][]=[];ws.eachRow((row,n)=>{if(n>1)out.push(headers.map((_,i)=>String(row.getCell(i+1).text??'')))});return out}private async project(org:string,id:string){const p=await this.prisma.project.findFirst({where:{id,organizationId:org},select:{id:true,code:true}});if(!p)throw new NotFoundException('Проект не найден');return p}}
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Priority, TestCaseStatus, TestStepSection, TestType } from '@prisma/client';
+import ExcelJS from 'exceljs';
+import { PrismaService } from '../prisma/prisma.service';
+
+type Row = { title:string; description:string; status:TestCaseStatus; priority:Priority; type:TestType; durationSeconds:number; preconditions:string; preExpected:string; steps:string; expected:string; postconditions:string; postExpected:string };
+const headers = ['Название','Описание','Статус','Приоритет','Тип','Продолжительность','Предусловия — действие','Предусловия — ожидаемый результат','Основные шаги — действие','Основные шаги — ожидаемый результат','Постусловия — действие','Постусловия — ожидаемый результат'];
+const statuses:Record<string,TestCaseStatus>={ГОТОВ:TestCaseStatus.READY,ЧЕРНОВИК:TestCaseStatus.DRAFT};
+const priorities:Record<string,Priority>={'САМЫЙ ВЫСОКИЙ':Priority.HIGHEST,ВЫСОКИЙ:Priority.HIGH,СРЕДНИЙ:Priority.MEDIUM,НИЗКИЙ:Priority.LOW,'ОЧЕНЬ НИЗКИЙ':Priority.LOWEST};
+const priorityNames:Record<Priority,string>={HIGHEST:'Самый высокий',HIGH:'Высокий',MEDIUM:'Средний',LOW:'Низкий',LOWEST:'Очень низкий'};
+
+@Injectable()
+export class ImportsService {
+  constructor(private prisma:PrismaService){}
+
+  async import(org:string,projectId:string,userId:string,file:{originalname:string;buffer:Buffer},commit:boolean){
+    await this.project(org,projectId);
+    if(!file)throw new BadRequestException('Выберите CSV или XLSX файл');
+    const raw=file.originalname.toLowerCase().endsWith('.csv')?this.csv(file.buffer.toString('utf8')):await this.xlsx(file.buffer);
+    if(raw.length>1000)throw new BadRequestException('За один импорт разрешено не более 1000 строк');
+    const rows:Row[]=[],errors:Array<{row:number;message:string}>=[];
+    raw.forEach((value,index)=>{try{rows.push(this.normalize(value))}catch(error){errors.push({row:index+2,message:error instanceof Error?error.message:'Некорректная строка'})}});
+    if(commit&&errors.length)throw new BadRequestException({message:'Исправьте ошибки импорта',errors});
+    if(commit&&rows.length)await this.prisma.$transaction(async tx=>{
+      const project=await tx.project.update({where:{id:projectId},data:{nextTestCaseNumber:{increment:rows.length}},select:{nextTestCaseNumber:true}});
+      const start=project.nextTestCaseNumber-rows.length;
+      for(let index=0;index<rows.length;index++){
+        const row=rows[index];
+        const testCase=await tx.testCase.create({data:{projectId,caseNumber:start+index,title:row.title,status:row.status,priority:row.priority,type:row.type,authorId:userId,versions:{create:{version:1,description:row.description||null,durationSeconds:row.durationSeconds,createdById:userId}}},include:{versions:true}});
+        const versionId=testCase.versions[0].id;
+        const steps=[...this.stepRows(versionId,TestStepSection.PRECONDITION,row.preconditions,row.preExpected),...this.stepRows(versionId,TestStepSection.ACTION,row.steps,row.expected),...this.stepRows(versionId,TestStepSection.POSTCONDITION,row.postconditions,row.postExpected)];
+        if(steps.length)await tx.testStep.createMany({data:steps});
+      }
+    });
+    return{valid:rows.length,invalid:errors.length,errors,imported:commit?rows.length:0,preview:rows.slice(0,20)};
+  }
+
+  async export(org:string,projectId:string,format:'csv'|'xlsx'){
+    const{project,rows}=await this.exportRows(org,projectId);
+    if(format==='csv'){
+      const text='\uFEFF'+[headers,...rows].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');
+      return{name:`${project.code}-test-cases.csv`,mime:'text/csv; charset=utf-8',buffer:Buffer.from(text)};
+    }
+    const workbook=this.book(rows);
+    return{name:`${project.code}-test-cases.xlsx`,mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await workbook.xlsx.writeBuffer())};
+  }
+
+  async template(org:string,projectId:string){
+    await this.project(org,projectId);
+    const workbook=this.book([['Успешная авторизация','Проверка входа с корректными данными','Готов','Высокий','FUNCTIONAL','1m 30s','Открыть страницу входа','Страница входа загружена','Ввести корректный логин\nВвести корректный пароль\nНажать «Войти»','Логин принят\nПароль принят\nОткрыта главная страница','Выйти из системы','Сессия завершена']]);
+    return{mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await workbook.xlsx.writeBuffer())};
+  }
+
+  private async exportRows(org:string,id:string){
+    const project=await this.project(org,id);
+    const items=await this.prisma.testCase.findMany({where:{projectId:id},orderBy:{caseNumber:'asc'},include:{versions:{orderBy:{version:'desc'},take:1,include:{steps:{orderBy:[{section:'asc'},{position:'asc'}]}}}}});
+    return{project,rows:items.map(item=>{
+      const version=item.versions[0],steps=version?.steps??[];
+      const values=(section:TestStepSection,key:'action'|'expectedResult')=>steps.filter(step=>step.section===section).map(step=>step[key]).join('\n');
+      return[item.title,version?.description??'',item.status===TestCaseStatus.READY?'Готов':'Черновик',priorityNames[item.priority],item.type,this.duration(version?.durationSeconds??0),values(TestStepSection.PRECONDITION,'action'),values(TestStepSection.PRECONDITION,'expectedResult'),values(TestStepSection.ACTION,'action'),values(TestStepSection.ACTION,'expectedResult'),values(TestStepSection.POSTCONDITION,'action'),values(TestStepSection.POSTCONDITION,'expectedResult')];
+    })};
+  }
+
+  private book(rows:any[][]){
+    const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Тест-кейсы',{views:[{state:'frozen',ySplit:1}]});
+    sheet.addRow(headers);rows.forEach(row=>sheet.addRow(row));
+    sheet.getRow(1).height=34;sheet.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};sheet.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF4F46E5'}};
+    sheet.columns=[36,42,16,19,18,20,44,44,52,52,44,44].map(width=>({width}));
+    sheet.eachRow(row=>{row.alignment={vertical:'top',wrapText:true}});sheet.autoFilter={from:'A1',to:'L1'};
+    for(let row=2;row<=1001;row++){
+      sheet.getCell(`C${row}`).dataValidation={type:'list',allowBlank:false,formulae:['"Готов,Черновик"']};
+      sheet.getCell(`D${row}`).dataValidation={type:'list',allowBlank:false,formulae:['"Самый высокий,Высокий,Средний,Низкий,Очень низкий"']};
+      sheet.getCell(`E${row}`).dataValidation={type:'list',allowBlank:false,formulae:[`"${Object.values(TestType).join(',')}"`]};
+    }
+    return workbook;
+  }
+
+  private normalize(values:string[]):Row{
+    const modern=values.length>=12,title=(values[0]??'').trim();
+    if(title.length<2||title.length>255)throw new Error('Название обязательно: от 2 до 255 символов');
+    const status=this.enumValue(modern?values[2]:'Черновик',statuses,TestCaseStatus,TestCaseStatus.DRAFT,'статус');
+    const priority=this.enumValue(modern?values[3]:values[2],priorities,Priority,Priority.MEDIUM,'приоритет');
+    const type=this.enumValue(modern?values[4]:values[3],{},TestType,TestType.FUNCTIONAL,'тип теста');
+    return{title,description:values[1]?.trim()??'',status,priority,type,durationSeconds:this.seconds((modern?values[5]:values[4])??''),preconditions:values[modern?6:5]??'',preExpected:modern?values[7]??'':'',steps:values[modern?8:6]??'',expected:values[modern?9:7]??'',postconditions:values[modern?10:8]??'',postExpected:modern?values[11]??'':''};
+  }
+  private enumValue<T extends string>(raw:string|undefined,labels:Record<string,T>,values:Record<string,T>,fallback:T,name:string):T{const text=raw?.trim().toUpperCase();if(!text)return fallback;const value=labels[text]??values[text];if(!value)throw new Error(`Неизвестный ${name}: ${raw}`);return value}
+  private stepRows(versionId:string,section:TestStepSection,actions:string,expected:string){const actionLines=this.lines(actions),expectedLines=this.lines(expected);return actionLines.map((action,position)=>({versionId,section,position,action,expectedResult:expectedLines[position]??''}))}
+  private seconds(value:string){let total=0,found=false;for(const match of value.matchAll(/(\d+)\s*([hms])/gi)){found=true;total+=Number(match[1])*(match[2].toLowerCase()==='h'?3600:match[2].toLowerCase()==='m'?60:1)}if(value.trim()&&!found)throw new Error('Продолжительность: формат 1h 2m 3s');return total}
+  private duration(seconds:number){return`${Math.floor(seconds/3600)?`${Math.floor(seconds/3600)}h `:''}${Math.floor(seconds%3600/60)?`${Math.floor(seconds%3600/60)}m `:''}${seconds%60?`${seconds%60}s`:''}`.trim()||'0s'}
+  private lines(value:string){return value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
+  private csv(text:string){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);return lines.slice(1).map(line=>{const output:string[]=[];let current='',quoted=false;for(let index=0;index<line.length;index++){const character=line[index];if(character==='"'&&line[index+1]==='"'){current+='"';index++}else if(character==='"')quoted=!quoted;else if((character===';'||character===',')&&!quoted){output.push(current);current=''}else current+=character}output.push(current);return output})}
+  private async xlsx(buffer:Buffer){const workbook=new ExcelJS.Workbook();try{await workbook.xlsx.load(buffer as any)}catch{throw new BadRequestException('Не удалось прочитать XLSX. Скачайте новый шаблон и проверьте файл')}const sheet=workbook.worksheets[0];if(!sheet)throw new BadRequestException('В XLSX нет листов');const output:string[][]=[];sheet.eachRow((row,number)=>{if(number>1)output.push(headers.map((_,index)=>String(row.getCell(index+1).text??'')))});return output}
+  private async project(org:string,id:string){const project=await this.prisma.project.findFirst({where:{id,organizationId:org},select:{id:true,code:true}});if(!project)throw new NotFoundException('Проект не найден');return project}
+}
