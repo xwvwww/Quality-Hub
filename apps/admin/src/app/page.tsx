@@ -1,19 +1,1164 @@
-'use client';
-import {FormEvent,useEffect,useMemo,useState}from'react';
-import{Activity,Bell,Building2,ChevronRight,CircleUserRound,Database,FileClock,KeyRound,LayoutDashboard,LogOut,Moon,Pencil,Plus,Search,Server,ShieldCheck,Sun,Trash2,UserCog,Users,X}from'lucide-react';
-import{adminApi,adminSession}from'@/lib/auth';
-type Tab='overview'|'organizations'|'users'|'activity'|'admin-audit'|'profile';type Stats={organizations:number;users:number;activeUsers:number;blockedUsers:number;auditEvents:number;recentLogins:number;roles:Record<string,number>};type Org={id:string;name:string;slug:string;isActive:boolean;createdAt:string;_count:{members:number;projects:number;auditLogs:number};members?:Member[]};type Member={role:string;createdAt:string;user:User};type User={id:string;email:string;username:string;firstName:string;lastName:string;isActive:boolean;isSystemAdmin:boolean;lastLoginAt:string|null;createdAt:string;memberships:Array<{role:string;organization:{id:string;name:string}}>};type Audit={id:string;action:string;entityType:string|null;ipAddress:string|null;createdAt:string;metadata:any;user:{firstName:string;lastName:string;email?:string}|null;organization:{name:string}|null};type Profile={id:string;email:string;username:string;firstName:string;lastName:string;lastLoginAt:string|null;createdAt:string};type Session={id:string;createdAt:string;expiresAt:string};
-const roles:Record<string,string>={ADMIN:'Администратор организации',QA_LEAD:'QA Lead',QA_ENGINEER:'QA Engineer',BUSINESS_ANALYST:'Бизнес-аналитик'};const actions:Record<string,string>={LOGIN_SUCCESS:'Вход в систему',SYSTEM_USER_CREATED:'Создан пользователь',SYSTEM_USER_UPDATED:'Изменён пользователь',SYSTEM_USER_PASSWORD_RESET:'Изменён пароль',ORGANIZATION_CREATED:'Создана организация',ORGANIZATION_UPDATED:'Изменена организация',ORGANIZATION_DEACTIVATED:'Удалена организация',SYSTEM_PROFILE_UPDATED:'Изменён профиль',SESSION_REVOKED:'Завершена сессия'};const blank={email:'',username:'',firstName:'',lastName:'',password:'',organizationId:'',role:'QA_ENGINEER'};
-function initials(a='',b=''){return`${a[0]??''}${b[0]??''}`.toUpperCase()||'SA'}function Modal({title,close,children}:{title:string;close:()=>void;children:React.ReactNode}){return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><div><span className="eyebrow">SYSTEM ADMIN</span><h2>{title}</h2></div><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
-export default function Page(){const[ready,setReady]=useState(false),[logged,setLogged]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[toast,setToast]=useState(''),[tab,setTab]=useState<Tab>('overview'),[dark,setDark]=useState(false),[stats,setStats]=useState<Stats|null>(null),[orgs,setOrgs]=useState<Org[]>([]),[users,setUsers]=useState<User[]>([]),[audit,setAudit]=useState<Audit[]>([]),[adminAudit,setAdminAudit]=useState<Audit[]>([]),[notifications,setNotifications]=useState<Audit[]>([]),[sessions,setSessions]=useState<Session[]>([]),[profile,setProfile]=useState<Profile|null>(null),[selectedOrg,setSelectedOrg]=useState<Org|null>(null),[selectedUser,setSelectedUser]=useState<User|null>(null),[query,setQuery]=useState(''),[modal,setModal]=useState<'org'|'user'|'password'|'profile'|null>(null),[orgForm,setOrgForm]=useState({name:'',slug:''}),[userForm,setUserForm]=useState(blank),[newPassword,setNewPassword]=useState(''),[bell,setBell]=useState(false);
-useEffect(()=>{setLogged(Boolean(adminSession.get()?.user.systemAdmin));setDark(localStorage.getItem('qh-admin-theme')==='dark');setReady(true)},[]);async function load(){try{const[s,o,u,a,aa,p,se,n]=await Promise.all([adminApi<Stats>('/system-admin/stats'),adminApi<Org[]>('/system-admin/organizations'),adminApi<User[]>('/system-admin/users'),adminApi<Audit[]>('/system-admin/audit'),adminApi<Audit[]>('/system-admin/admin-audit'),adminApi<Profile>('/system-admin/profile'),adminApi<Session[]>('/system-admin/sessions'),adminApi<Audit[]>('/system-admin/notifications')]);setStats(s);setOrgs(o);setUsers(u);setAudit(a);setAdminAudit(aa);setProfile(p);setSessions(se);setNotifications(n);setUserForm(v=>({...v,organizationId:v.organizationId||o.find(x=>x.isActive)?.id||''}))}catch(e){setError((e as Error).message)}}useEffect(()=>{if(logged)void load()},[logged]);function done(t:string){setToast(t);setTimeout(()=>setToast(''),3200)}
-async function login(e:FormEvent){e.preventDefault();try{const r=await fetch('/api/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),d=await r.json();if(!r.ok)throw new Error(d.message);adminSession.set(d);setLogged(true)}catch(e){setError((e as Error).message)}}async function logout(){await fetch('/api/auth/logout',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});adminSession.clear();setLogged(false)}
-async function openOrg(o:Org){setSelectedOrg(await adminApi<Org>(`/system-admin/organizations/${o.id}`))}async function saveOrg(e:FormEvent){e.preventDefault();await adminApi(selectedOrg?`/system-admin/organizations/${selectedOrg.id}`:'/system-admin/organizations',{method:selectedOrg?'PATCH':'POST',body:JSON.stringify(orgForm)});setModal(null);setSelectedOrg(null);await load();done('Организация сохранена')}async function removeOrg(){if(!selectedOrg)return;await adminApi(`/system-admin/organizations/${selectedOrg.id}`,{method:'DELETE'});setSelectedOrg(null);await load();done('Организация удалена из активных')}
-function newUser(orgId=''){setSelectedUser(null);setUserForm({...blank,organizationId:orgId||orgs.find(x=>x.isActive)?.id||''});setModal('user')}function editUser(u:User){const m=u.memberships[0];setSelectedUser(u);setUserForm({...blank,firstName:u.firstName,lastName:u.lastName,organizationId:m?.organization.id??'',role:m?.role??'QA_ENGINEER'});setModal('user')}async function saveUser(e:FormEvent){e.preventDefault();await adminApi(selectedUser?`/system-admin/users/${selectedUser.id}`:'/system-admin/users',{method:selectedUser?'PATCH':'POST',body:JSON.stringify(selectedUser?{firstName:userForm.firstName,lastName:userForm.lastName,organizationId:userForm.organizationId,role:userForm.role}:userForm)});setModal(null);await load();if(selectedOrg)await openOrg(selectedOrg);done('Пользователь сохранён')}async function removeUser(u:User){await adminApi(`/system-admin/users/${u.id}`,{method:'DELETE'});await load();if(selectedOrg)await openOrg(selectedOrg);done('Пользователь удалён из активных')}async function resetPassword(e:FormEvent){e.preventDefault();await adminApi(`/system-admin/users/${selectedUser?.id}/password`,{method:'POST',body:JSON.stringify({password:newPassword})});setModal(null);setNewPassword('');done('Пароль изменён, сессии пользователя завершены')}async function revoke(id:string){await adminApi(`/system-admin/sessions/${id}`,{method:'DELETE'});await load();done('Сессия завершена')}async function saveProfile(e:FormEvent){e.preventDefault();await adminApi('/system-admin/profile',{method:'PATCH',body:JSON.stringify({firstName:profile?.firstName,lastName:profile?.lastName})});setModal(null);await load();done('Профиль обновлён')}
-const fUsers=useMemo(()=>users.filter(u=>`${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(query.toLowerCase())),[users,query]),fOrgs=useMemo(()=>orgs.filter(o=>o.name.toLowerCase().includes(query.toLowerCase())),[orgs,query]);if(!ready)return null;if(!logged)return <main className="login"><form className="login-card" onSubmit={login}><div className="brand-mark"><ShieldCheck/></div><span className="eyebrow">QUALITY HUB • SYSTEM CONTROL</span><h1>Центр администрирования</h1><p className="muted">Защищённый контур управления платформой</p><label>Email<input className="field" type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Пароль<input className="field" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p className="alert error">{error}</p>}<button className="btn wide">Войти</button><small>© 2026 Almen Alnur</small></form></main>;
-const nav:Array<[Tab,string,any]>=[['overview','Обзор',LayoutDashboard],['organizations','Организации',Building2],['users','Пользователи',Users],['activity','Активность',Activity],['admin-audit','Журнал админки',FileClock],['profile','Мой профиль',CircleUserRound]];return <div className={dark?'admin dark':'admin'}><aside><div className="logo"><span><ShieldCheck/></span><div>Quality Hub<b>Administration</b></div></div><nav>{nav.map(([id,label,I])=><button key={id} className={tab===id?'active':''} onClick={()=>{setTab(id);setSelectedOrg(null)}}><I/><span>{label}</span><ChevronRight/></button>)}</nav><div className="aside-foot"><button onClick={logout}><LogOut/>Выйти</button><small>© 2026 Almen Alnur</small></div></aside><div className="workspace"><header className="topbar"><b>{nav.find(x=>x[0]===tab)?.[1]}</b><div className="top-actions"><button className="icon" onClick={()=>setBell(!bell)}><Bell/></button><button className="icon" onClick={()=>{setDark(!dark);localStorage.setItem('qh-admin-theme',!dark?'dark':'light')}}>{dark?<Sun/>:<Moon/>}</button><button className="profile-chip" onClick={()=>setTab('profile')}><span>{initials(profile?.firstName,profile?.lastName)}</span><div><b>{profile?.firstName} {profile?.lastName}</b><small>Системный администратор</small></div></button></div></header>{bell&&<div className="notification-drawer panel"><h2>Уведомления</h2>{notifications.map(n=><button key={n.id} onClick={()=>{setBell(false);setTab(n.action.startsWith('SYSTEM_')||n.action.startsWith('ORGANIZATION_')?'admin-audit':'activity')}}><Activity/><span><b>{actions[n.action]??n.action}</b><small>{n.user?`${n.user.firstName} ${n.user.lastName}`:'Система'} • {new Date(n.createdAt).toLocaleString('ru-RU')}</small></span></button>)}</div>}<main><div className="page-head"><h1>{nav.find(x=>x[0]===tab)?.[1]}</h1>{tab==='organizations'&&<button className="btn" onClick={()=>{setSelectedOrg(null);setOrgForm({name:'',slug:''});setModal('org')}}><Plus/>Создать</button>}{tab==='users'&&<button className="btn" onClick={()=>newUser()}><Plus/>Добавить</button>}</div>{error&&<p className="alert error">{error}</p>}{toast&&<div className="toast"><ShieldCheck/>{toast}</div>}
-{tab==='overview'&&<><section className="metrics">{[[Building2,'Организации',stats?.organizations,'organizations'],[Users,'Пользователи',stats?.users,'users'],[UserCog,'Отключены',stats?.blockedUsers,'users'],[Activity,'Входы за 7 дней',stats?.recentLogins,'activity']].map(([I,l,v,to]:any)=><article className="metric" onClick={()=>setTab(to)} key={l}><div className="metric-icon"><I/></div><p>{l}</p><strong>{v??'—'}</strong><small>Открыть раздел →</small></article>)}</section><section className="overview-grid"><article className="panel"><h2>Распределение ролей</h2>{Object.entries(roles).map(([r,l])=><p key={r}>{l}: <b>{stats?.roles[r]??0}</b></p>)}</article><article className="panel"><h2>Сервисы</h2><div className="health"><div><span><Database/>PostgreSQL</span><b>Работает</b></div><div><span><Server/>Backend API</span><b>Работает</b></div></div></article></section></>}
-{(tab==='organizations'||tab==='users')&&<div className="toolbar"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Поиск"/></div>}{tab==='organizations'&&!selectedOrg&&<section className="org-grid">{fOrgs.map(o=><article className="org-card" key={o.id} onClick={()=>openOrg(o)}><div className="org-icon"><Building2/></div><h3>{o.name}</h3><code>{o.slug}</code><div className="org-stats"><span><b>{o._count.members}</b>Участников</span><span><b>{o._count.projects}</b>Проектов</span><span><b>{o._count.auditLogs}</b>Событий</span></div><i className={o.isActive?'status on':'status'}>{o.isActive?'Активна':'Удалена'}</i></article>)}</section>}{tab==='organizations'&&selectedOrg&&<><button className="back" onClick={()=>setSelectedOrg(null)}>← Все организации</button><section className="panel org-detail"><div className="org-detail-head"><div className="org-icon"><Building2/></div><div><h2>{selectedOrg.name}</h2><code>{selectedOrg.slug}</code></div><button className="btn-secondary" onClick={()=>newUser(selectedOrg.id)}><Plus/>Добавить пользователя</button><button className="btn-secondary" onClick={()=>{setOrgForm({name:selectedOrg.name,slug:selectedOrg.slug});setModal('org')}}><Pencil/></button><button className="btn-secondary" onClick={removeOrg} disabled={!selectedOrg.isActive}><Trash2/></button></div></section><UserTable items={(selectedOrg.members??[]).map(m=>({...m.user,memberships:[{role:m.role,organization:{id:selectedOrg.id,name:selectedOrg.name}}]}))} edit={editUser} remove={removeUser} password={u=>{setSelectedUser(u);setModal('password')}}/></>}{tab==='users'&&<UserTable items={fUsers} edit={editUser} remove={removeUser} password={u=>{setSelectedUser(u);setModal('password')}}/>}{(tab==='activity'||tab==='admin-audit')&&<AuditTable items={tab==='activity'?audit:adminAudit}/>} {tab==='profile'&&profile&&<section className="profile-layout"><article className="profile-card panel"><div className="avatar-xl">{initials(profile.firstName,profile.lastName)}</div><h2>{profile.firstName} {profile.lastName}</h2><p>{profile.email}</p><button className="btn" onClick={()=>setModal('profile')}><Pencil/>Редактировать</button></article><article className="panel profile-info"><h2>Активные сессии</h2>{sessions.map(s=><div className="session-row" key={s.id}><div><b>Сессия администратора</b><small className="block">Создана {new Date(s.createdAt).toLocaleString('ru-RU')} • до {new Date(s.expiresAt).toLocaleString('ru-RU')}</small></div><button className="btn-secondary" onClick={()=>revoke(s.id)}>Завершить</button></div>)}</article></section>}</main></div>
-{modal==='org'&&<Modal title={selectedOrg?'Редактировать организацию':'Новая организация'} close={()=>setModal(null)}><form className="form" onSubmit={saveOrg}><label>Название<input className="field" value={orgForm.name} onChange={e=>setOrgForm({...orgForm,name:e.target.value})} required/></label><label>Slug<input className="field" value={orgForm.slug} onChange={e=>setOrgForm({...orgForm,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')})} required/></label><button className="btn">Сохранить</button></form></Modal>}{modal==='user'&&<Modal title={selectedUser?'Редактировать пользователя':'Новый пользователь'} close={()=>setModal(null)}><form className="form two" onSubmit={saveUser}>{!selectedUser&&<><label>Email<input className="field" type="email" value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})} required/></label><label>Логин<input className="field" value={userForm.username} onChange={e=>setUserForm({...userForm,username:e.target.value})} required/></label></>}<label>Имя<input className="field" value={userForm.firstName} onChange={e=>setUserForm({...userForm,firstName:e.target.value})} required/></label><label>Фамилия<input className="field" value={userForm.lastName} onChange={e=>setUserForm({...userForm,lastName:e.target.value})} required/></label>{!selectedUser&&<label className="full">Временный пароль<input className="field" type="password" minLength={8} value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})} required/></label>}<label>Организация<select className="field" value={userForm.organizationId} onChange={e=>setUserForm({...userForm,organizationId:e.target.value})}>{orgs.filter(o=>o.isActive).map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select></label><label>Роль<select className="field" value={userForm.role} onChange={e=>setUserForm({...userForm,role:e.target.value})}>{Object.entries(roles).map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label><button className="btn full">Сохранить</button></form></Modal>}{modal==='password'&&<Modal title={`Новый пароль — ${selectedUser?.firstName}`} close={()=>setModal(null)}><form className="form" onSubmit={resetPassword}><p className="muted">После изменения все активные сессии пользователя будут завершены.</p><label>Новый пароль<input className="field" type="password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} required/></label><button className="btn"><KeyRound/>Изменить пароль</button></form></Modal>}{modal==='profile'&&profile&&<Modal title="Редактирование профиля" close={()=>setModal(null)}><form className="form two" onSubmit={saveProfile}><label>Имя<input className="field" value={profile.firstName} onChange={e=>setProfile({...profile,firstName:e.target.value})}/></label><label>Фамилия<input className="field" value={profile.lastName} onChange={e=>setProfile({...profile,lastName:e.target.value})}/></label><label className="full">Email<input className="field" value={profile.email} disabled/></label><button className="btn full">Сохранить профиль</button></form></Modal>}</div>}
-function UserTable({items,edit,remove,password}:{items:User[];edit:(u:User)=>void;remove:(u:User)=>void;password:(u:User)=>void}){return <section className="panel table-panel"><table><thead><tr><th>Пользователь</th><th>Организация</th><th>Роль</th><th>Последний вход</th><th>Статус</th><th/></tr></thead><tbody>{items.map(u=>{const m=u.memberships[0];return <tr key={u.id}><td><div className="user-cell"><span>{initials(u.firstName,u.lastName)}</span><div><b>{u.firstName} {u.lastName}</b><small>{u.email} • @{u.username}</small></div></div></td><td>{m?.organization.name??'—'}</td><td>{roles[m?.role]??m?.role}</td><td>{u.lastLoginAt?new Date(u.lastLoginAt).toLocaleString('ru-RU'):'Не входил'}</td><td><i className={u.isActive?'status on':'status'}>{u.isActive?'Активен':'Удалён'}</i></td><td><div className="row-actions"><button className="icon" disabled={u.isSystemAdmin} onClick={()=>edit(u)}><Pencil/></button><button className="icon" disabled={u.isSystemAdmin} onClick={()=>password(u)}><KeyRound/></button><button className="icon" disabled={u.isSystemAdmin||!u.isActive} onClick={()=>remove(u)}><Trash2/></button></div></td></tr>})}</tbody></table></section>}
-function AuditTable({items}:{items:Audit[]}){return <section className="panel table-panel"><table><thead><tr><th>Дата</th><th>Пользователь</th><th>IP</th><th>Объект</th><th>Действие</th><th>Изменения</th></tr></thead><tbody>{items.map(i=><tr key={i.id}><td>{new Date(i.createdAt).toLocaleString('ru-RU')}</td><td>{i.user?`${i.user.firstName} ${i.user.lastName}`:'Система'}</td><td><code>{i.ipAddress??'—'}</code></td><td>{i.entityType??'—'}<small className="block">{i.organization?.name}</small></td><td><span className="action-badge">{actions[i.action]??i.action}</span></td><td>{i.metadata?.changes?Object.entries(i.metadata.changes).map(([k,v]:any)=><small className="block" key={k}><b>{k}</b>: {String(v.from??'—')} → {String(v.to??'—')}</small>):'—'}</td></tr>)}</tbody></table></section>}
+"use client";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Bell,
+  Building2,
+  ChevronRight,
+  CircleUserRound,
+  Database,
+  FileClock,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  Pencil,
+  Plus,
+  Search,
+  Server,
+  ShieldCheck,
+  Sun,
+  Trash2,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
+import { adminApi, adminSession } from "@/lib/auth";
+type Tab =
+  | "overview"
+  | "organizations"
+  | "users"
+  | "activity"
+  | "admin-audit"
+  | "profile";
+type Stats = {
+  organizations: number;
+  users: number;
+  activeUsers: number;
+  blockedUsers: number;
+  auditEvents: number;
+  recentLogins: number;
+  roles: Record<string, number>;
+};
+type Org = {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  createdAt: string;
+  _count: { members: number; projects: number; auditLogs: number };
+  members?: Member[];
+  projects?: Array<{
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+    createdAt: string;
+    _count: { testCases: number; testPlans: number; testRuns: number };
+  }>;
+};
+type Member = { role: string; createdAt: string; user: User };
+type User = {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  isSystemAdmin: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  memberships: Array<{
+    role: string;
+    organization: { id: string; name: string };
+  }>;
+};
+type Audit = {
+  id: string;
+  action: string;
+  entityType: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  metadata: any;
+  user: { firstName: string; lastName: string; email?: string } | null;
+  organization: { name: string } | null;
+};
+type Profile = {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+};
+type Session = { id: string; createdAt: string; expiresAt: string };
+const roles: Record<string, string> = {
+  ADMIN: "Администратор организации",
+  QA_LEAD: "QA Lead",
+  QA_ENGINEER: "QA Engineer",
+  BUSINESS_ANALYST: "Бизнес-аналитик",
+};
+const actions: Record<string, string> = {
+  LOGIN_SUCCESS: "Вход в систему",
+  SYSTEM_USER_CREATED: "Создан пользователь",
+  SYSTEM_USER_UPDATED: "Изменён пользователь",
+  SYSTEM_USER_PASSWORD_RESET: "Изменён пароль",
+  ORGANIZATION_CREATED: "Создана организация",
+  ORGANIZATION_UPDATED: "Изменена организация",
+  ORGANIZATION_DEACTIVATED: "Удалена организация",
+  SYSTEM_PROFILE_UPDATED: "Изменён профиль",
+  SESSION_REVOKED: "Завершена сессия",
+};
+const blank = {
+  email: "",
+  username: "",
+  firstName: "",
+  lastName: "",
+  password: "",
+  organizationId: "",
+  role: "QA_ENGINEER",
+};
+function initials(a = "", b = "") {
+  return `${a[0] ?? ""}${b[0] ?? ""}`.toUpperCase() || "SA";
+}
+function Modal({
+  title,
+  close,
+  children,
+}: {
+  title: string;
+  close: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="overlay"
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+      <section className="modal">
+        <header>
+          <div>
+            <span className="eyebrow">SYSTEM ADMIN</span>
+            <h2>{title}</h2>
+          </div>
+          <button className="icon" onClick={close}>
+            <X />
+          </button>
+        </header>
+        {children}
+      </section>
+    </div>
+  );
+}
+export default function Page() {
+  const [ready, setReady] = useState(false),
+    [logged, setLogged] = useState(false),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [error, setError] = useState(""),
+    [toast, setToast] = useState(""),
+    [tab, setTab] = useState<Tab>("overview"),
+    [dark, setDark] = useState(false),
+    [stats, setStats] = useState<Stats | null>(null),
+    [orgs, setOrgs] = useState<Org[]>([]),
+    [users, setUsers] = useState<User[]>([]),
+    [audit, setAudit] = useState<Audit[]>([]),
+    [adminAudit, setAdminAudit] = useState<Audit[]>([]),
+    [notifications, setNotifications] = useState<Audit[]>([]),
+    [sessions, setSessions] = useState<Session[]>([]),
+    [profile, setProfile] = useState<Profile | null>(null),
+    [selectedOrg, setSelectedOrg] = useState<Org | null>(null),
+    [selectedUser, setSelectedUser] = useState<User | null>(null),
+    [query, setQuery] = useState(""),
+    [modal, setModal] = useState<
+      "org" | "user" | "password" | "profile" | null
+    >(null),
+    [orgForm, setOrgForm] = useState({ name: "", slug: "" }),
+    [userForm, setUserForm] = useState(blank),
+    [newPassword, setNewPassword] = useState(""),
+    [bell, setBell] = useState(false);
+  useEffect(() => {
+    setLogged(Boolean(adminSession.get()?.user.systemAdmin));
+    setDark(localStorage.getItem("qh-admin-theme") === "dark");
+    setReady(true);
+  }, []);
+  async function load() {
+    try {
+      const [s, o, u, a, aa, p, se, n] = await Promise.all([
+        adminApi<Stats>("/system-admin/stats"),
+        adminApi<Org[]>("/system-admin/organizations"),
+        adminApi<User[]>("/system-admin/users"),
+        adminApi<Audit[]>("/system-admin/audit"),
+        adminApi<Audit[]>("/system-admin/admin-audit"),
+        adminApi<Profile>("/system-admin/profile"),
+        adminApi<Session[]>("/system-admin/sessions"),
+        adminApi<Audit[]>("/system-admin/notifications"),
+      ]);
+      setStats(s);
+      setOrgs(o);
+      setUsers(u);
+      setAudit(a);
+      setAdminAudit(aa);
+      setProfile(p);
+      setSessions(se);
+      setNotifications(n);
+      setUserForm((v) => ({
+        ...v,
+        organizationId: v.organizationId || o.find((x) => x.isActive)?.id || "",
+      }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  useEffect(() => {
+    if (logged) void load();
+  }, [logged]);
+  function done(t: string) {
+    setToast(t);
+    setTimeout(() => setToast(""), 3200);
+  }
+  async function login(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const r = await fetch("/api/auth/admin/login", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }),
+        d = await r.json();
+      if (!r.ok) throw new Error(d.message);
+      adminSession.set(d);
+      setLogged(true);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function logout() {
+    await fetch("/api/auth/admin/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    adminSession.clear();
+    setLogged(false);
+  }
+  async function openOrg(o: Org) {
+    setSelectedOrg(await adminApi<Org>(`/system-admin/organizations/${o.id}`));
+  }
+  async function saveOrg(e: FormEvent) {
+    e.preventDefault();
+    await adminApi(
+      selectedOrg
+        ? `/system-admin/organizations/${selectedOrg.id}`
+        : "/system-admin/organizations",
+      { method: selectedOrg ? "PATCH" : "POST", body: JSON.stringify(orgForm) },
+    );
+    setModal(null);
+    setSelectedOrg(null);
+    await load();
+    done("Организация сохранена");
+  }
+  async function removeOrg() {
+    if (!selectedOrg) return;
+    await adminApi(`/system-admin/organizations/${selectedOrg.id}`, {
+      method: "DELETE",
+    });
+    setSelectedOrg(null);
+    await load();
+    done("Организация удалена из активных");
+  }
+  function newUser(orgId = "") {
+    setSelectedUser(null);
+    setUserForm({
+      ...blank,
+      organizationId: orgId || orgs.find((x) => x.isActive)?.id || "",
+    });
+    setModal("user");
+  }
+  function editUser(u: User) {
+    const m = u.memberships[0];
+    setSelectedUser(u);
+    setUserForm({
+      ...blank,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      organizationId: m?.organization.id ?? "",
+      role: m?.role ?? "QA_ENGINEER",
+    });
+    setModal("user");
+  }
+  async function saveUser(e: FormEvent) {
+    e.preventDefault();
+    await adminApi(
+      selectedUser
+        ? `/system-admin/users/${selectedUser.id}`
+        : "/system-admin/users",
+      {
+        method: selectedUser ? "PATCH" : "POST",
+        body: JSON.stringify(
+          selectedUser
+            ? {
+                firstName: userForm.firstName,
+                lastName: userForm.lastName,
+                organizationId: userForm.organizationId,
+                role: userForm.role,
+              }
+            : userForm,
+        ),
+      },
+    );
+    setModal(null);
+    await load();
+    if (selectedOrg) await openOrg(selectedOrg);
+    done("Пользователь сохранён");
+  }
+  async function removeUser(u: User) {
+    await adminApi(`/system-admin/users/${u.id}`, { method: "DELETE" });
+    await load();
+    if (selectedOrg) await openOrg(selectedOrg);
+    done("Пользователь удалён из активных");
+  }
+  async function resetPassword(e: FormEvent) {
+    e.preventDefault();
+    await adminApi(`/system-admin/users/${selectedUser?.id}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password: newPassword }),
+    });
+    setModal(null);
+    setNewPassword("");
+    done("Пароль изменён, сессии пользователя завершены");
+  }
+  async function revoke(id: string) {
+    await adminApi(`/system-admin/sessions/${id}`, { method: "DELETE" });
+    await load();
+    done("Сессия завершена");
+  }
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    await adminApi("/system-admin/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        firstName: profile?.firstName,
+        lastName: profile?.lastName,
+      }),
+    });
+    setModal(null);
+    await load();
+    done("Профиль обновлён");
+  }
+  const fUsers = useMemo(
+      () =>
+        users.filter((u) =>
+          `${u.firstName} ${u.lastName} ${u.email}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        ),
+      [users, query],
+    ),
+    fOrgs = useMemo(
+      () =>
+        orgs.filter((o) => o.name.toLowerCase().includes(query.toLowerCase())),
+      [orgs, query],
+    );
+  if (!ready) return null;
+  if (!logged)
+    return (
+      <main className="login">
+        <form className="login-card" onSubmit={login}>
+          <div className="brand-mark">
+            <ShieldCheck />
+          </div>
+          <span className="eyebrow">QUALITY HUB • SYSTEM CONTROL</span>
+          <h1>Центр администрирования</h1>
+          <p className="muted">Защищённый контур управления платформой</p>
+          <label>
+            Email
+            <input
+              className="field"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Пароль
+            <input
+              className="field"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+          {error && <p className="alert error">{error}</p>}
+          <button className="btn wide">Войти</button>
+          <small>© 2026 Almen Alnur</small>
+        </form>
+      </main>
+    );
+  const nav: Array<[Tab, string, any]> = [
+    ["overview", "Обзор", LayoutDashboard],
+    ["organizations", "Организации", Building2],
+    ["users", "Пользователи", Users],
+    ["activity", "Активность", Activity],
+    ["admin-audit", "Журнал админки", FileClock],
+    ["profile", "Мой профиль", CircleUserRound],
+  ];
+  return (
+    <div className={dark ? "admin dark" : "admin"}>
+      <aside>
+        <div className="logo">
+          <span>
+            <ShieldCheck />
+          </span>
+          <div>
+            Quality Hub<b>Administration</b>
+          </div>
+        </div>
+        <nav>
+          {nav.map(([id, label, I]) => (
+            <button
+              key={id}
+              className={tab === id ? "active" : ""}
+              onClick={() => {
+                setTab(id);
+                setSelectedOrg(null);
+              }}
+            >
+              <I />
+              <span>{label}</span>
+              <ChevronRight />
+            </button>
+          ))}
+        </nav>
+        <div className="aside-foot">
+          <button onClick={logout}>
+            <LogOut />
+            Выйти
+          </button>
+          <small>© 2026 Almen Alnur</small>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <b>{nav.find((x) => x[0] === tab)?.[1]}</b>
+          <div className="top-actions">
+            <button className="icon" onClick={() => setBell(!bell)}>
+              <Bell />
+            </button>
+            <button
+              className="icon"
+              onClick={() => {
+                setDark(!dark);
+                localStorage.setItem(
+                  "qh-admin-theme",
+                  !dark ? "dark" : "light",
+                );
+              }}
+            >
+              {dark ? <Sun /> : <Moon />}
+            </button>
+            <button className="profile-chip" onClick={() => setTab("profile")}>
+              <span>{initials(profile?.firstName, profile?.lastName)}</span>
+              <div>
+                <b>
+                  {profile?.firstName} {profile?.lastName}
+                </b>
+                <small>Системный администратор</small>
+              </div>
+            </button>
+          </div>
+        </header>
+        {bell && (
+          <div className="notification-drawer panel">
+            <h2>Уведомления</h2>
+            {notifications.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => {
+                  setBell(false);
+                  setTab(
+                    n.action.startsWith("SYSTEM_") ||
+                      n.action.startsWith("ORGANIZATION_")
+                      ? "admin-audit"
+                      : "activity",
+                  );
+                }}
+              >
+                <Activity />
+                <span>
+                  <b>{actions[n.action] ?? n.action}</b>
+                  <small>
+                    {n.user
+                      ? `${n.user.firstName} ${n.user.lastName}`
+                      : "Система"}{" "}
+                    • {new Date(n.createdAt).toLocaleString("ru-RU")}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <main>
+          <div className="page-head">
+            <h1>{nav.find((x) => x[0] === tab)?.[1]}</h1>
+            {tab === "organizations" && (
+              <button
+                className="btn"
+                onClick={() => {
+                  setSelectedOrg(null);
+                  setOrgForm({ name: "", slug: "" });
+                  setModal("org");
+                }}
+              >
+                <Plus />
+                Создать
+              </button>
+            )}
+            {tab === "users" && (
+              <button className="btn" onClick={() => newUser()}>
+                <Plus />
+                Добавить
+              </button>
+            )}
+          </div>
+          {error && <p className="alert error">{error}</p>}
+          {toast && (
+            <div className="toast">
+              <ShieldCheck />
+              {toast}
+            </div>
+          )}
+          {tab === "overview" && (
+            <>
+              <section className="metrics">
+                {[
+                  [
+                    Building2,
+                    "Организации",
+                    stats?.organizations,
+                    "organizations",
+                  ],
+                  [Users, "Пользователи", stats?.users, "users"],
+                  [UserCog, "Отключены", stats?.blockedUsers, "users"],
+                  [
+                    Activity,
+                    "Входы за 7 дней",
+                    stats?.recentLogins,
+                    "activity",
+                  ],
+                ].map(([I, l, v, to]: any) => (
+                  <article
+                    className="metric"
+                    onClick={() => setTab(to)}
+                    key={l}
+                  >
+                    <div className="metric-icon">
+                      <I />
+                    </div>
+                    <p>{l}</p>
+                    <strong>{v ?? "—"}</strong>
+                    <small>Открыть раздел →</small>
+                  </article>
+                ))}
+              </section>
+              <section className="overview-grid">
+                <article className="panel role-distribution">
+                  <h2>Распределение ролей</h2>
+                  {Object.entries(roles).map(([r, l]) => (
+                    <p key={r}>
+                      {l}: <b>{stats?.roles[r] ?? 0}</b>
+                    </p>
+                  ))}
+                </article>
+                <article className="panel">
+                  <h2>Сервисы</h2>
+                  <div className="health">
+                    <div>
+                      <span>
+                        <Database />
+                        PostgreSQL
+                      </span>
+                      <b>Работает</b>
+                    </div>
+                    <div>
+                      <span>
+                        <Server />
+                        Backend API
+                      </span>
+                      <b>Работает</b>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            </>
+          )}
+          {(tab === "organizations" || tab === "users") && (
+            <div className="toolbar">
+              <Search />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Поиск"
+              />
+            </div>
+          )}
+          {tab === "organizations" && !selectedOrg && (
+            <section className="org-grid">
+              {fOrgs.map((o) => (
+                <article
+                  className="org-card"
+                  key={o.id}
+                  onClick={() => openOrg(o)}
+                >
+                  <div className="org-icon">
+                    <Building2 />
+                  </div>
+                  <h3>{o.name}</h3>
+                  <code>{o.slug}</code>
+                  <div className="org-stats">
+                    <span>
+                      <b>{o._count.members}</b>Участников
+                    </span>
+                    <span>
+                      <b>{o._count.projects}</b>Проектов
+                    </span>
+                    <span>
+                      <b>{o._count.auditLogs}</b>Событий
+                    </span>
+                  </div>
+                  <i className={o.isActive ? "status on" : "status"}>
+                    {o.isActive ? "Активна" : "Удалена"}
+                  </i>
+                </article>
+              ))}
+            </section>
+          )}
+          {tab === "organizations" && selectedOrg && (
+            <>
+              <button className="back" onClick={() => setSelectedOrg(null)}>
+                ← Все организации
+              </button>
+              <section className="panel org-detail">
+                <div className="org-detail-head">
+                  <div className="org-icon">
+                    <Building2 />
+                  </div>
+                  <div>
+                    <h2>{selectedOrg.name}</h2>
+                    <code>{selectedOrg.slug}</code>
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => newUser(selectedOrg.id)}
+                  >
+                    <Plus />
+                    Добавить пользователя
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setOrgForm({
+                        name: selectedOrg.name,
+                        slug: selectedOrg.slug,
+                      });
+                      setModal("org");
+                    }}
+                  >
+                    <Pencil />
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={removeOrg}
+                    disabled={!selectedOrg.isActive}
+                  >
+                    <Trash2 />
+                  </button>
+                </div>
+              </section>
+              <section className="panel table-panel organization-projects">
+                <div className="panel-title">
+                  <div>
+                    <h2>Проекты организации</h2>
+                    <p>Объём тестирования внутри выбранной организации</p>
+                  </div>
+                  <Building2 />
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Проект</th>
+                      <th>Статус</th>
+                      <th>Тест-кейсы</th>
+                      <th>Тест-планы</th>
+                      <th>Тест-раны</th>
+                      <th>Создан</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedOrg.projects ?? []).map((project) => (
+                      <tr key={project.id}>
+                        <td>
+                          <b>{project.code}</b>
+                          <small className="block">{project.name}</small>
+                        </td>
+                        <td>
+                          <i
+                            className={
+                              project.status === "ACTIVE"
+                                ? "status on"
+                                : "status"
+                            }
+                          >
+                            {project.status === "ACTIVE" ? "Активен" : "Архив"}
+                          </i>
+                        </td>
+                        <td>{project._count.testCases}</td>
+                        <td>{project._count.testPlans}</td>
+                        <td>{project._count.testRuns}</td>
+                        <td>
+                          {new Date(project.createdAt).toLocaleDateString(
+                            "ru-RU",
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {!selectedOrg.projects?.length && (
+                      <tr>
+                        <td colSpan={6} className="empty-cell">
+                          Проектов пока нет
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </section>
+              <UserTable
+                items={(selectedOrg.members ?? []).map((m) => ({
+                  ...m.user,
+                  memberships: [
+                    {
+                      role: m.role,
+                      organization: {
+                        id: selectedOrg.id,
+                        name: selectedOrg.name,
+                      },
+                    },
+                  ],
+                }))}
+                edit={editUser}
+                remove={removeUser}
+                password={(u) => {
+                  setSelectedUser(u);
+                  setModal("password");
+                }}
+              />
+            </>
+          )}
+          {tab === "users" && (
+            <UserTable
+              items={fUsers}
+              edit={editUser}
+              remove={removeUser}
+              password={(u) => {
+                setSelectedUser(u);
+                setModal("password");
+              }}
+            />
+          )}
+          {(tab === "activity" || tab === "admin-audit") && (
+            <AuditTable items={tab === "activity" ? audit : adminAudit} />
+          )}{" "}
+          {tab === "profile" && profile && (
+            <section className="profile-layout">
+              <form className="profile-card panel profile-inline-form" onSubmit={saveProfile}>
+                <div className="avatar-xl">
+                  {initials(profile.firstName, profile.lastName)}
+                </div>
+                <h2>
+                  {profile.firstName} {profile.lastName}
+                </h2>
+                <p>{profile.email}</p>
+                <label>Имя<input className="field" value={profile.firstName} onChange={(e)=>setProfile({...profile,firstName:e.target.value})} required minLength={2}/></label>
+                <label>Фамилия<input className="field" value={profile.lastName} onChange={(e)=>setProfile({...profile,lastName:e.target.value})} required minLength={2}/></label>
+                <button className="btn" type="submit">
+                  <Pencil />
+                  Редактировать
+                </button>
+              </form>
+              <article className="panel profile-info">
+                <h2>Активные сессии</h2>
+                {sessions.map((s) => (
+                  <div className="session-row" key={s.id}>
+                    <div>
+                      <b>Сессия администратора</b>
+                      <small className="block">
+                        Создана {new Date(s.createdAt).toLocaleString("ru-RU")}{" "}
+                        • до {new Date(s.expiresAt).toLocaleString("ru-RU")}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => revoke(s.id)}
+                    >
+                      Завершить
+                    </button>
+                  </div>
+                ))}
+              </article>
+            </section>
+          )}
+        </main>
+      </div>
+      {modal === "org" && (
+        <Modal
+          title={
+            selectedOrg ? "Редактировать организацию" : "Новая организация"
+          }
+          close={() => setModal(null)}
+        >
+          <form className="form" onSubmit={saveOrg}>
+            <label>
+              Название
+              <input
+                className="field"
+                value={orgForm.name}
+                onChange={(e) =>
+                  setOrgForm({ ...orgForm, name: e.target.value })
+                }
+                required
+              />
+            </label>
+            <label>
+              Slug
+              <input
+                className="field"
+                value={orgForm.slug}
+                onChange={(e) =>
+                  setOrgForm({
+                    ...orgForm,
+                    slug: e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, "-"),
+                  })
+                }
+                required
+              />
+            </label>
+            <button className="btn">Сохранить</button>
+          </form>
+        </Modal>
+      )}
+      {modal === "user" && (
+        <Modal
+          title={
+            selectedUser ? "Редактировать пользователя" : "Новый пользователь"
+          }
+          close={() => setModal(null)}
+        >
+          <form className="form two" onSubmit={saveUser}>
+            {!selectedUser && (
+              <>
+                <label>
+                  Email
+                  <input
+                    className="field"
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) =>
+                      setUserForm({ ...userForm, email: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  Логин
+                  <input
+                    className="field"
+                    value={userForm.username}
+                    onChange={(e) =>
+                      setUserForm({ ...userForm, username: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+              </>
+            )}
+            <label>
+              Имя
+              <input
+                className="field"
+                value={userForm.firstName}
+                onChange={(e) =>
+                  setUserForm({ ...userForm, firstName: e.target.value })
+                }
+                required
+              />
+            </label>
+            <label>
+              Фамилия
+              <input
+                className="field"
+                value={userForm.lastName}
+                onChange={(e) =>
+                  setUserForm({ ...userForm, lastName: e.target.value })
+                }
+                required
+              />
+            </label>
+            {!selectedUser && (
+              <label className="full">
+                Временный пароль
+                <input
+                  className="field"
+                  type="password"
+                  minLength={8}
+                  value={userForm.password}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, password: e.target.value })
+                  }
+                  required
+                />
+              </label>
+            )}
+            <label>
+              Организация
+              <select
+                className="field"
+                value={userForm.organizationId}
+                onChange={(e) =>
+                  setUserForm({ ...userForm, organizationId: e.target.value })
+                }
+              >
+                {orgs
+                  .filter((o) => o.isActive)
+                  .map((o) => (
+                    <option value={o.id} key={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Роль
+              <select
+                className="field"
+                value={userForm.role}
+                onChange={(e) =>
+                  setUserForm({ ...userForm, role: e.target.value })
+                }
+              >
+                {Object.entries(roles).map(([v, l]) => (
+                  <option value={v} key={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn full">Сохранить</button>
+          </form>
+        </Modal>
+      )}
+      {modal === "password" && (
+        <Modal
+          title={`Новый пароль — ${selectedUser?.firstName}`}
+          close={() => setModal(null)}
+        >
+          <form className="form" onSubmit={resetPassword}>
+            <p className="muted">
+              После изменения все активные сессии пользователя будут завершены.
+            </p>
+            <label>
+              Новый пароль
+              <input
+                className="field"
+                type="password"
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </label>
+            <button className="btn">
+              <KeyRound />
+              Изменить пароль
+            </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "profile" && profile && (
+        <Modal title="Редактирование профиля" close={() => setModal(null)}>
+          <form className="form two" onSubmit={saveProfile}>
+            <label>
+              Имя
+              <input
+                className="field"
+                value={profile.firstName}
+                onChange={(e) =>
+                  setProfile({ ...profile, firstName: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Фамилия
+              <input
+                className="field"
+                value={profile.lastName}
+                onChange={(e) =>
+                  setProfile({ ...profile, lastName: e.target.value })
+                }
+              />
+            </label>
+            <label className="full">
+              Email
+              <input className="field" value={profile.email} disabled />
+            </label>
+            <button className="btn full">Сохранить профиль</button>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+function UserTable({
+  items,
+  edit,
+  remove,
+  password,
+}: {
+  items: User[];
+  edit: (u: User) => void;
+  remove: (u: User) => void;
+  password: (u: User) => void;
+}) {
+  return (
+    <section className="panel table-panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Пользователь</th>
+            <th>Организация</th>
+            <th>Роль</th>
+            <th>Последний вход</th>
+            <th>Статус</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((u) => {
+            const m = u.memberships[0];
+            return (
+              <tr key={u.id}>
+                <td>
+                  <div className="user-cell">
+                    <span>{initials(u.firstName, u.lastName)}</span>
+                    <div>
+                      <b>
+                        {u.firstName} {u.lastName}
+                      </b>
+                      <small>
+                        {u.email} • @{u.username}
+                      </small>
+                    </div>
+                  </div>
+                </td>
+                <td>{m?.organization.name ?? "—"}</td>
+                <td>{roles[m?.role] ?? m?.role}</td>
+                <td>
+                  {u.lastLoginAt
+                    ? new Date(u.lastLoginAt).toLocaleString("ru-RU")
+                    : "Не входил"}
+                </td>
+                <td>
+                  <i className={u.isActive ? "status on" : "status"}>
+                    {u.isActive ? "Активен" : "Удалён"}
+                  </i>
+                </td>
+                <td>
+                  <div className="row-actions">
+                    <button
+                      className="icon"
+                      disabled={u.isSystemAdmin}
+                      onClick={() => edit(u)}
+                    >
+                      <Pencil />
+                    </button>
+                    <button
+                      className="icon"
+                      disabled={u.isSystemAdmin}
+                      onClick={() => password(u)}
+                    >
+                      <KeyRound />
+                    </button>
+                    <button
+                      className="icon"
+                      disabled={u.isSystemAdmin || !u.isActive}
+                      onClick={() => remove(u)}
+                    >
+                      <Trash2 />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+function AuditTable({ items }: { items: Audit[] }) {
+  return (
+    <section className="panel table-panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Пользователь</th>
+            <th>IP</th>
+            <th>Объект</th>
+            <th>Действие</th>
+            <th>Изменения</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.id}>
+              <td>{new Date(i.createdAt).toLocaleString("ru-RU")}</td>
+              <td>
+                {i.user ? `${i.user.firstName} ${i.user.lastName}` : "Система"}
+              </td>
+              <td>
+                <code>{i.ipAddress ?? "—"}</code>
+              </td>
+              <td>
+                {i.entityType ?? "—"}
+                <small className="block">{i.organization?.name}</small>
+              </td>
+              <td>
+                <span className="action-badge">
+                  {actions[i.action] ?? i.action}
+                </span>
+              </td>
+              <td>
+                {i.metadata?.changes
+                  ? Object.entries(i.metadata.changes).map(([k, v]: any) => (
+                      <small className="block" key={k}>
+                        <b>{k}</b>: {String(v.from ?? "—")} →{" "}
+                        {String(v.to ?? "—")}
+                      </small>
+                    ))
+                  : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
