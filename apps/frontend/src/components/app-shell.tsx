@@ -37,6 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     avatarUrl: string | null;
   } | null>(null);
   const role = session.get()?.user.role;
+  const systemAdmin = session.get()?.user.systemAdmin === true;
   const workspaceItems = [
     [FolderKanban, t.projects, "/projects"],
     [ClipboardCheck, t.cases, "/test-cases"],
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [PlayCircle, t.runs, "/test-runs"],
     [Plug, t.integrations, "/integrations"],
   ] as const;
-  const items = [
+  const workspaceNavigation = [
     [LayoutDashboard, t.overview, "/dashboard"],
     ...(role === "ADMIN" ? [] : workspaceItems),
     [UserRoundCog, "Организация", "/teams"],
@@ -52,6 +53,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [Gauge, t.analytics, "/analytics"],
     ...(role === "ADMIN" ? [[Users, t.admin, "/administration"] as const] : []),
   ] as const;
+  const items = systemAdmin
+    ? ([
+        [LayoutDashboard, "Обзор", "/dashboard"],
+        [ShieldCheck, "Администрирование", "/administration"],
+      ] as const)
+    : workspaceNavigation;
   useEffect(() => {
     setHydrated(true);
     if (!session.get()) router.replace("/");
@@ -99,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
   async function logout() {
     try {
-      await fetch("/api/auth/logout", {
+      await fetch(systemAdmin ? "/api/auth/admin/logout" : "/api/auth/logout", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

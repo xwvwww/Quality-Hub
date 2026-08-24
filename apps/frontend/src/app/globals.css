@@ -299,6 +299,10 @@ main.max-w-\[1500px\] table td:nth-child(4) > span {
   justify-content: center;
   min-width: 7rem;
 }
+.system-admin-console table { width: 100%; border-collapse: collapse; }
+.system-admin-console th { padding: .85rem 1rem; text-align: left; color: var(--muted); font-size: .75rem; font-weight: 600; background: color-mix(in srgb, var(--panel) 82%, #eef2ff); position: sticky; top: 0; }
+.system-admin-console td { padding: .9rem 1rem; border-top: 1px solid var(--line); vertical-align: middle; }
+.system-admin-console tbody tr:hover { background: color-mix(in srgb, var(--panel) 92%, #6366f1); }
 @media (prefers-reduced-motion: reduce) {
   .route-enter {
     animation: none;

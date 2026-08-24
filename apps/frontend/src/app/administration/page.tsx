@@ -17,6 +17,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { api, session } from "@/lib/auth";
 import { AuditChanges } from "@/components/audit-changes";
+import { SystemAdminConsole } from "@/components/system-admin-console";
 
 type Role = "ADMIN" | "QA_LEAD" | "QA_ENGINEER" | "DEVELOPER" | "VIEWER";
 type Member = {
@@ -65,7 +66,7 @@ const empty = {
   role: "QA_ENGINEER" as Role,
 };
 
-export default function AdministrationPage() {
+function OrganizationAdministration() {
   const currentRole = session.get()?.user.role;
   const isAdmin = currentRole === "ADMIN";
   const canManageUsers = isAdmin || currentRole === "QA_LEAD";
@@ -616,5 +617,13 @@ export default function AdministrationPage() {
         )}
       </main>
     </AppShell>
+  );
+}
+
+export default function AdministrationPage() {
+  return session.get()?.user.systemAdmin ? (
+    <SystemAdminConsole />
+  ) : (
+    <OrganizationAdministration />
   );
 }
