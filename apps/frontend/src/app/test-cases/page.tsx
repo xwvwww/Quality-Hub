@@ -8,6 +8,7 @@ import {
   Copy,
   FileCheck2,
   Folder,
+  FolderInput,
   FolderPlus,
   Plus,
   Search,
@@ -68,6 +69,7 @@ export default function TestCasesPage() {
   const [projectId, setProjectId] = useState("");
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [folderId, setFolderId] = useState("");
+  const [projectTotal, setProjectTotal] = useState(0);
   const [cases, setCases] = useState<CasesResponse>({
     items: [],
     meta: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
@@ -78,6 +80,7 @@ export default function TestCasesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [modal, setModal] = useState(false);
+  const [formFolderId, setFormFolderId] = useState("");
   const [saving, setSaving] = useState(false);
   const emptyForm = {
     title: "",
@@ -95,6 +98,8 @@ export default function TestCasesPage() {
   const [folderParentId, setFolderParentId] = useState<string | undefined>();
   const [folderName, setFolderName] = useState("");
   const [folderSaving, setFolderSaving] = useState(false);
+  const [moveModal, setMoveModal] = useState(false);
+  const [moveTarget, setMoveTarget] = useState("");
   const role = session.get()?.user.role;
   const canEdit = [
     "ADMIN",
@@ -115,6 +120,12 @@ export default function TestCasesPage() {
     if (!projectId) return;
     api<FolderItem[]>(`/projects/${projectId}/test-case-folders`)
       .then(setFolders)
+      .catch((reason) => setError(reason.message));
+  }, [projectId]);
+  const loadProjectTotal = useCallback(() => {
+    if (!projectId) return;
+    api<CasesResponse>(`/projects/${projectId}/test-cases?page=1&pageSize=10`)
+      .then((result) => setProjectTotal(result.meta.total))
       .catch((reason) => setError(reason.message));
   }, [projectId]);
   const loadCases = useCallback(async () => {
@@ -144,7 +155,8 @@ export default function TestCasesPage() {
     setFolderId("");
     setPage(1);
     loadFolders();
-  }, [projectId, loadFolders]);
+    loadProjectTotal();
+  }, [projectId, loadFolders, loadProjectTotal]);
   useEffect(() => {
     const timer = setTimeout(loadCases, 250);
     return () => clearTimeout(timer);
@@ -158,6 +170,17 @@ export default function TestCasesPage() {
     return map;
   }, [folders]);
   const currentProject = projects.find((item) => item.id === projectId);
+  const folderPath = useCallback((targetId: string | null) => {
+    if (!targetId) return [currentProject?.name ?? "Проект", "Без папки"];
+    const byId = new Map(folders.map((folder) => [folder.id, folder]));
+    const path: string[] = [];
+    let current = byId.get(targetId);
+    while (current) {
+      path.unshift(current.name);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return [currentProject?.name ?? "Проект", ...path];
+  }, [folders, currentProject]);
 
   function addFolder(parentId?: string) {
     setFolderParentId(parentId);
@@ -213,13 +236,14 @@ export default function TestCasesPage() {
         body: JSON.stringify({
           ...form,
           durationSeconds,
-          ...(folderId ? { folderId } : {}),
+          ...(formFolderId ? { folderId: formFolderId } : {}),
         }),
       });
       setModal(false);
       setForm(emptyForm);
       setDurationInput("");
       await loadCases();
+      await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
     } finally {
@@ -230,6 +254,7 @@ export default function TestCasesPage() {
     try {
       await api(`/test-cases/${item.id}/clone`, { method: "POST" });
       await loadCases();
+      await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
     }
@@ -255,8 +280,24 @@ export default function TestCasesPage() {
         body: JSON.stringify(body),
       });
       await loadCases();
+      await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
+    }
+  }
+
+  async function moveSelected() {
+    if (!selected.length || !moveTarget) return;
+    try {
+      await api(`/projects/${projectId}/test-cases/bulk`, {
+        method: "POST",
+        body: JSON.stringify({ ids: selected, action: "move", folderId: moveTarget }),
+      });
+      setMoveModal(false);
+      await loadCases();
+      await Promise.all([loadFolders(), loadProjectTotal()]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ошибка перемещения");
     }
   }
 
@@ -352,7 +393,10 @@ export default function TestCasesPage() {
               <button
                 className="btn flex gap-2 items-center mb-[1px]"
                 disabled={!projectId}
-                onClick={() => setModal(true)}
+                onClick={() => {
+                  setFormFolderId(folderId);
+                  setModal(true);
+                }}
               >
                 <Plus size={18} />
                 Новый тест-кейс
@@ -394,7 +438,7 @@ export default function TestCasesPage() {
             >
               Все тест-кейсы{" "}
               <span className="float-right text-xs text-muted">
-                {cases.meta.total}
+                {projectTotal}
               </span>
             </button>
             <div className="mt-1">
@@ -423,6 +467,16 @@ export default function TestCasesPage() {
                   <span className="self-center text-sm">
                     Выбрано: {selected.length}
                   </span>
+                  <button
+                    className="btn-secondary flex items-center gap-2"
+                    onClick={() => {
+                      setMoveTarget(folderId || folders[0]?.id || "");
+                      setMoveModal(true);
+                    }}
+                  >
+                    <FolderInput size={16} />
+                    Переместить
+                  </button>
                   <button
                     className="btn-secondary"
                     onClick={() => bulk("archive")}
@@ -502,6 +556,14 @@ export default function TestCasesPage() {
                           >
                             {item.title}
                           </Link>
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5 text-[11px] text-muted">
+                            {folderPath(item.folderId).map((part, index) => (
+                              <span className="inline-flex items-center gap-1" key={`${part}-${index}`}>
+                                {index > 0 && <span className="text-brand">→</span>}
+                                {part}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="p-4">
                           <span className="px-2 py-1 bg-slate-100 rounded-full text-xs">
@@ -595,6 +657,13 @@ export default function TestCasesPage() {
                   <X />
                 </button>
               </div>
+              <label className="block font-semibold text-sm mb-2">Папка</label>
+              <select className="field mb-4" value={formFolderId} onChange={(event) => setFormFolderId(event.target.value)}>
+                <option value="">Без папки</option>
+                {folders.map((folder) => (
+                  <option value={folder.id} key={folder.id}>{folderPath(folder.id).join(" → ")}</option>
+                ))}
+              </select>
               <label className="block font-semibold text-sm mb-2">
                 Название *
               </label>
@@ -774,6 +843,32 @@ export default function TestCasesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+        {moveModal && (
+          <div className="fixed inset-0 bg-slate-950/50 grid place-items-center p-4 z-[70]" onMouseDown={(event) => event.target === event.currentTarget && setMoveModal(false)}>
+            <section className="card p-6 w-full max-w-md">
+              <div className="flex justify-between items-start mb-5">
+                <div>
+                  <h2 className="m-0">Переместить тест-кейсы</h2>
+                  <p className="text-sm text-muted mt-1 mb-0">Выбрано: {selected.length}</p>
+                </div>
+                <button className="icon-btn" onClick={() => setMoveModal(false)}><X size={18}/></button>
+              </div>
+              <label className="block text-sm font-semibold mb-2">Папка назначения</label>
+              <select className="field" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)}>
+                <option value="" disabled>Выберите папку</option>
+                {folders.map((folder) => (
+                  <option value={folder.id} key={folder.id}>{folderPath(folder.id).join(" → ")}</option>
+                ))}
+              </select>
+              <div className="flex justify-end gap-3 mt-6">
+                <button className="btn-secondary" onClick={() => setMoveModal(false)}>Отмена</button>
+                <button className="btn flex items-center gap-2" disabled={!moveTarget} onClick={moveSelected}>
+                  <FolderInput size={17}/>Переместить
+                </button>
+              </div>
+            </section>
           </div>
         )}
       </main>
