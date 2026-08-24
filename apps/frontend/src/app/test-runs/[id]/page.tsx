@@ -120,11 +120,15 @@ function ProtectedImage({ file }: { file: Attachment }) {
     </div>
   ) : src ? (
     <a href={src} target="_blank" rel="noreferrer">
-      <img
-        src={src}
-        alt={file.fileName}
-        className="w-28 h-20 object-cover rounded-lg border border-[var(--line)]"
-      />
+      {src ? (
+        <img
+          src={src}
+          alt={file.fileName}
+          className="w-28 h-20 object-cover rounded-lg border border-[var(--line)]"
+        />
+      ) : (
+        <div className="w-28 h-20 rounded-lg bg-slate-100 animate-pulse" />
+      )}
     </a>
   ) : (
     <div className="w-28 h-20 bg-slate-100 animate-pulse rounded-lg" />
@@ -273,12 +277,25 @@ export default function RunExecution() {
   }
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (saving || (event.target as HTMLElement)?.matches("input,textarea,select")) return;
+      if (
+        saving ||
+        (event.target as HTMLElement)?.matches("input,textarea,select")
+      )
+        return;
       const key = event.key.toLowerCase();
-      const statusByKey: Record<string, string> = { p: "PASSED", f: "FAILED", b: "BLOCKED", s: "SKIPPED", r: "RETEST" };
+      const statusByKey: Record<string, string> = {
+        p: "PASSED",
+        f: "FAILED",
+        b: "BLOCKED",
+        s: "SKIPPED",
+        r: "RETEST",
+      };
       if (!statusByKey[key]) return;
       const now = Date.now();
-      if (shortcutRef.current.key === key && now - shortcutRef.current.at <= 600) {
+      if (
+        shortcutRef.current.key === key &&
+        now - shortcutRef.current.at <= 600
+      ) {
         event.preventDefault();
         shortcutRef.current = { key: "", at: 0 };
         void save(statusByKey[key]);
@@ -424,7 +441,13 @@ export default function RunExecution() {
                         <h3>{sectionNames[section]}</h3>
                         <div className="border border-[var(--line)] rounded-xl overflow-hidden">
                           <div className="hidden md:grid grid-cols-[44px_1fr_1fr] bg-slate-50 text-xs text-muted font-semibold">
-                            <span className="p-3 text-center">#</span><span className="p-3 border-l border-[var(--line)]">Действие</span><span className="p-3 border-l border-[var(--line)]">Ожидаемый результат</span>
+                            <span className="p-3 text-center">#</span>
+                            <span className="p-3 border-l border-[var(--line)]">
+                              Действие
+                            </span>
+                            <span className="p-3 border-l border-[var(--line)]">
+                              Ожидаемый результат
+                            </span>
                           </div>
                           {item.testCase.version?.steps
                             .filter((step) => step.section === section)
@@ -433,7 +456,9 @@ export default function RunExecution() {
                                 key={step.id}
                                 className="grid md:grid-cols-[44px_1fr_1fr] border-t border-[var(--line)] first:border-t-0 md:first:border-t"
                               >
-                                <b className="p-3 text-center text-brand bg-slate-50/70">{index + 1}</b>
+                                <b className="p-3 text-center text-brand bg-slate-50/70">
+                                  {index + 1}
+                                </b>
                                 <div className="p-3 md:border-l border-[var(--line)]">
                                   <span className="text-xs text-muted md:hidden">
                                     Действие
@@ -450,7 +475,11 @@ export default function RunExecution() {
                             ))}
                           {!item.testCase.version?.steps.some(
                             (step) => step.section === section,
-                          ) && <p className="text-muted text-sm p-4 m-0">Нет шагов</p>}
+                          ) && (
+                            <p className="text-muted text-sm p-4 m-0">
+                              Нет шагов
+                            </p>
+                          )}
                         </div>
                       </div>
                     ),
@@ -464,44 +493,197 @@ export default function RunExecution() {
             )}
           </section>
           <aside className="card p-5 self-start xl:sticky xl:top-20 overflow-hidden">
-            {item ? <>
-              <div className="flex items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
-                <div><span className="text-xs text-muted">РЕЗУЛЬТАТ ТЕСТА</span><h3 className="m-0 mt-1">{statusNames[item.status] ?? item.status}</h3></div>
-                <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{background:statuses.find(([value])=>value===item.status)?.[2]??'#64748b'}}>{item.status==='NOT_RUN'?'Ожидает':'Сохранён'}</span>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 p-4 my-4">
-                <div className="flex justify-between items-center"><span className="text-xs text-muted">Затраченное время</span><Clock3 size={18} className="text-brand"/></div>
-                <b className="font-mono text-3xl block mt-2">{formatDuration(elapsed)}</b>
-                <div className="flex gap-2 mt-3">
-                  <button className="icon-btn bg-white" type="button" onClick={()=>setTimerRunning(!timerRunning)}>{timerRunning?<Pause size={17}/>:<Play size={17}/>}</button>
-                  <button className="icon-btn bg-white" type="button" onClick={()=>{setElapsed(0);setDuration('')}}><RotateCcw size={17}/></button>
-                  <span className="text-xs text-muted self-center ml-auto">Оценка {formatDuration(item.testCase.version?.durationSeconds??0)}</span>
-                </div>
-              </div>
-
-              {canExecute && <>
-                <label className="text-xs font-semibold block mb-2">Фактический результат</label>
-                <textarea className="field min-h-20 mb-3" placeholder="Что произошло при проверке" value={actual} onChange={(event)=>setActual(event.target.value)}/>
-                <label className="text-xs font-semibold block mb-2">Комментарий</label>
-                <textarea className="field min-h-16 mb-3" placeholder="Дополнительные детали" value={comment} onChange={(event)=>setComment(event.target.value)}/>
-                <label className="text-xs font-semibold block mb-2">Фактическое время</label>
-                <input className="field mb-4" placeholder={formatDuration(elapsed)||'1m 30s'} value={duration} onChange={(event)=>setDuration(event.target.value)}/>
-
-                <div className="grid gap-2">
-                  {statuses.map(([value,label,color])=><button type="button" disabled={saving} key={value} onClick={()=>save(value)} className="border border-white/20 rounded-xl px-4 py-3 text-white font-semibold cursor-pointer shadow-md hover:brightness-105 transition flex justify-between" style={{background:color}}><span>{label}</span><span className="opacity-70">{value==='PASSED'?'P':value==='FAILED'?'F':value==='BLOCKED'?'B':value==='SKIPPED'?'S':'R'}</span></button>)}
+            {item ? (
+              <>
+                <div className="flex items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
+                  <div>
+                    <span className="text-xs text-muted">РЕЗУЛЬТАТ ТЕСТА</span>
+                    <h3 className="m-0 mt-1">
+                      {statusNames[item.status] ?? item.status}
+                    </h3>
+                  </div>
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-semibold text-white"
+                    style={{
+                      background:
+                        statuses.find(
+                          ([value]) => value === item.status,
+                        )?.[2] ?? "#64748b",
+                    }}
+                  >
+                    {item.status === "NOT_RUN" ? "Ожидает" : "Сохранён"}
+                  </span>
                 </div>
 
-                <label className="mt-4 border border-dashed border-indigo-300 bg-indigo-50/60 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer text-center">
-                  <Paperclip className="text-brand"/><b className="text-sm">Добавить вложения</b><span className="text-xs text-muted">PNG, JPG или WebP · до 10 МБ</span>
-                  <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event)=>{const chosen=Array.from(event.target.files??[]);if(chosen.some((file)=>file.size>10*1024*1024)){setError('Максимальный размер — 10 МБ');return}setFiles((current)=>[...current,...chosen].slice(0,5))}}/>
-                </label>
-                {files.length>0&&<div className="flex flex-wrap gap-3 mt-3">{files.map((file,index)=><LocalPreview key={`${file.name}-${index}`} file={file} onRemove={()=>setFiles((current)=>current.filter((_,position)=>position!==index))}/>)}</div>}
-              </>}
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 p-4 my-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted">
+                      Затраченное время
+                    </span>
+                    <Clock3 size={18} className="text-brand" />
+                  </div>
+                  <b className="font-mono text-3xl block mt-2">
+                    {formatDuration(elapsed)}
+                  </b>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      className="icon-btn bg-white"
+                      type="button"
+                      onClick={() => setTimerRunning(!timerRunning)}
+                    >
+                      {timerRunning ? <Pause size={17} /> : <Play size={17} />}
+                    </button>
+                    <button
+                      className="icon-btn bg-white"
+                      type="button"
+                      onClick={() => {
+                        setElapsed(0);
+                        setDuration("");
+                      }}
+                    >
+                      <RotateCcw size={17} />
+                    </button>
+                    <span className="text-xs text-muted self-center ml-auto">
+                      Оценка{" "}
+                      {formatDuration(
+                        item.testCase.version?.durationSeconds ?? 0,
+                      )}
+                    </span>
+                  </div>
+                </div>
 
-              {item.results[0]&&<div className="mt-5 pt-4 border-t border-[var(--line)] text-sm"><div className="flex justify-between"><span className="text-muted">Последний результат</span><b>{formatDuration(item.results[0].durationSeconds??0)}</b></div><span className="text-xs text-muted">{new Date(item.results[0].createdAt).toLocaleString('ru-RU')}</span></div>}
-              {item.attachments.length>0&&<div className="mt-4"><b className="text-sm">Вложения</b><div className="flex flex-wrap gap-2 mt-2">{item.attachments.map((file)=><div key={file.id}><ProtectedImage file={file}/></div>)}</div></div>}
-            </>:<p className="text-muted text-center p-6">Выберите тест-кейс</p>}
+                {canExecute && (
+                  <>
+                    <label className="text-xs font-semibold block mb-2">
+                      Фактический результат
+                    </label>
+                    <textarea
+                      className="field min-h-20 mb-3"
+                      placeholder="Что произошло при проверке"
+                      value={actual}
+                      onChange={(event) => setActual(event.target.value)}
+                    />
+                    <label className="text-xs font-semibold block mb-2">
+                      Комментарий
+                    </label>
+                    <textarea
+                      className="field min-h-16 mb-3"
+                      placeholder="Дополнительные детали"
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                    />
+                    <label className="text-xs font-semibold block mb-2">
+                      Фактическое время
+                    </label>
+                    <input
+                      className="field mb-4"
+                      placeholder={formatDuration(elapsed) || "1m 30s"}
+                      value={duration}
+                      onChange={(event) => setDuration(event.target.value)}
+                    />
+
+                    <div className="grid gap-2">
+                      {statuses.map(([value, label, color]) => (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          key={value}
+                          onClick={() => save(value)}
+                          className="border border-white/20 rounded-xl px-4 py-3 text-white font-semibold cursor-pointer shadow-md hover:brightness-105 transition flex justify-between"
+                          style={{ background: color }}
+                        >
+                          <span>{label}</span>
+                          <span className="opacity-70">
+                            {value === "PASSED"
+                              ? "P"
+                              : value === "FAILED"
+                                ? "F"
+                                : value === "BLOCKED"
+                                  ? "B"
+                                  : value === "SKIPPED"
+                                    ? "S"
+                                    : "R"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <label className="mt-4 border border-dashed border-indigo-300 bg-indigo-50/60 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer text-center">
+                      <Paperclip className="text-brand" />
+                      <b className="text-sm">Добавить вложения</b>
+                      <span className="text-xs text-muted">
+                        PNG, JPG или WebP · до 10 МБ
+                      </span>
+                      <input
+                        className="hidden"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        onChange={(event) => {
+                          const chosen = Array.from(event.target.files ?? []);
+                          if (
+                            chosen.some((file) => file.size > 10 * 1024 * 1024)
+                          ) {
+                            setError("Максимальный размер — 10 МБ");
+                            return;
+                          }
+                          setFiles((current) =>
+                            [...current, ...chosen].slice(0, 5),
+                          );
+                        }}
+                      />
+                    </label>
+                    {files.length > 0 && (
+                      <div className="flex flex-wrap gap-3 mt-3">
+                        {files.map((file, index) => (
+                          <LocalPreview
+                            key={`${file.name}-${index}`}
+                            file={file}
+                            onRemove={() =>
+                              setFiles((current) =>
+                                current.filter(
+                                  (_, position) => position !== index,
+                                ),
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {item.results[0] && (
+                  <div className="mt-5 pt-4 border-t border-[var(--line)] text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted">Последний результат</span>
+                      <b>
+                        {formatDuration(item.results[0].durationSeconds ?? 0)}
+                      </b>
+                    </div>
+                    <span className="text-xs text-muted">
+                      {new Date(item.results[0].createdAt).toLocaleString(
+                        "ru-RU",
+                      )}
+                    </span>
+                  </div>
+                )}
+                {item.attachments.length > 0 && (
+                  <div className="mt-4">
+                    <b className="text-sm">Вложения</b>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {item.attachments.map((file) => (
+                        <div key={file.id}>
+                          <ProtectedImage file={file} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-muted text-center p-6">Выберите тест-кейс</p>
+            )}
           </aside>
         </div>
       </main>
