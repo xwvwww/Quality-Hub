@@ -311,18 +311,19 @@ main.max-w-\[1500px\] table td:nth-child(4) > span {
 
 /* Larger, easier-to-target selection controls across tables and forms. */
 input[type="checkbox"] {
-  width: 1.25rem;
-  height: 1.25rem;
-  min-width: 1.25rem;
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
   margin: 0;
   cursor: pointer;
   accent-color: #6366f1;
   vertical-align: middle;
+  border-radius: 0.25rem;
 }
 
 input[type="checkbox"]:focus-visible {
-  outline: 3px solid color-mix(in srgb, #6366f1 30%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid color-mix(in srgb, #6366f1 30%, transparent);
+  outline-offset: 2px;
 }
 
 input[type="checkbox"]:disabled {

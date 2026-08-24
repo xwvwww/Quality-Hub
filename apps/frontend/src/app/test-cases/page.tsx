@@ -7,6 +7,7 @@ import {
   Archive,
   Copy,
   FileCheck2,
+  FileSpreadsheet,
   Folder,
   FolderInput,
   FolderPlus,
@@ -389,6 +390,14 @@ export default function TestCasesPage() {
                 ))}
               </select>
             </label>
+            <button
+              className="btn-secondary flex gap-2 items-center mb-[1px]"
+              disabled={!projectId}
+              onClick={() => window.dispatchEvent(new CustomEvent("quality-hub-import-export"))}
+            >
+              <FileSpreadsheet size={18} />
+              Импорт / экспорт
+            </button>
             {canEdit && (
               <button
                 className="btn flex gap-2 items-center mb-[1px]"
