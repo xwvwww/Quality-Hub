@@ -160,17 +160,17 @@ function WorkspaceDashboard() {
               </div>
               <Activity className="text-brand" />
             </div>
-            <div className="h-64 flex items-end gap-2 mt-6 border-b border-[var(--line)]">
+            <div className="grid grid-cols-7 gap-3 mt-6">
               {days.map((d) => (
                 <div
-                  className="flex-1 h-full flex flex-col justify-end min-w-2"
+                  className="aspect-[1.35] p-1.5 rounded-xl border border-[var(--line)] bg-slate-50 shadow-inner"
                   key={d.date}
                   title={`${d.date}: ${d.total}`}
                 >
                   <div
-                    className="flex flex-col-reverse rounded-t-lg overflow-hidden bg-slate-100"
+                    className="h-full flex flex-col-reverse rounded-lg overflow-hidden bg-slate-100"
                     style={{
-                      height: `${Math.max(d.total ? 8 : 2, (d.total / max) * 92)}%`,
+                      opacity: Math.max(0.18, d.total / max),
                     }}
                   >
                     {d.total ? (

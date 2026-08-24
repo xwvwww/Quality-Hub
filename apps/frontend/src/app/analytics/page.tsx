@@ -228,17 +228,17 @@ export default function Analytics() {
                       <TrendingDown className="text-rose-500" />
                     )}
                   </div>
-                  <div className="h-64 flex items-end gap-1 mt-6 border-b border-[var(--line)]">
+                  <div className="grid grid-cols-7 md:grid-cols-10 gap-2 mt-6 max-h-72 overflow-y-auto pr-1">
                     {data.daily.map((d) => (
                       <div
-                        className="flex-1 h-full flex flex-col justify-end min-w-1"
+                        className="aspect-square p-1 rounded-lg border border-[var(--line)] bg-slate-50 shadow-inner"
                         title={`${d.date}: ${d.total}`}
                         key={d.date}
                       >
                         <div
-                          className="flex flex-col-reverse rounded-t overflow-hidden bg-slate-100"
+                          className="h-full flex flex-col-reverse rounded-md overflow-hidden bg-slate-100"
                           style={{
-                            height: `${Math.max(d.total ? 6 : 1, (d.total / max) * 94)}%`,
+                            opacity: Math.max(0.16, d.total / max),
                           }}
                         >
                           {d.total ? (
