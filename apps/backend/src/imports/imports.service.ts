@@ -14,8 +14,9 @@ const priorityNames:Record<Priority,string>={HIGHEST:'Самый высокий'
 export class ImportsService {
   constructor(private prisma:PrismaService){}
 
-  async import(org:string,projectId:string,userId:string,file:{originalname:string;buffer:Buffer},commit:boolean){
+  async import(org:string,projectId:string,userId:string,file:{originalname:string;buffer:Buffer},commit:boolean,folderId?:string){
     await this.project(org,projectId);
+    if(folderId&&!await this.prisma.testCaseFolder.findFirst({where:{id:folderId,projectId},select:{id:true}}))throw new BadRequestException('Выбранная папка не принадлежит проекту');
     if(!file)throw new BadRequestException('Выберите CSV или XLSX файл');
     const raw=file.originalname.toLowerCase().endsWith('.csv')?this.csv(file.buffer.toString('utf8')):await this.xlsx(file.buffer);
     if(raw.length>1000)throw new BadRequestException('За один импорт разрешено не более 1000 строк');
@@ -27,7 +28,7 @@ export class ImportsService {
       const start=project.nextTestCaseNumber-rows.length;
       for(let index=0;index<rows.length;index++){
         const row=rows[index];
-        const testCase=await tx.testCase.create({data:{projectId,caseNumber:start+index,title:row.title,status:row.status,priority:row.priority,type:row.type,authorId:userId,versions:{create:{version:1,description:row.description||null,durationSeconds:row.durationSeconds,createdById:userId}}},include:{versions:true}});
+        const testCase=await tx.testCase.create({data:{projectId,folderId:folderId??null,caseNumber:start+index,title:row.title,status:row.status,priority:row.priority,type:row.type,authorId:userId,versions:{create:{version:1,description:row.description||null,durationSeconds:row.durationSeconds,createdById:userId}}},include:{versions:true}});
         const versionId=testCase.versions[0].id;
         const steps=[...this.stepRows(versionId,TestStepSection.PRECONDITION,row.preconditions,row.preExpected),...this.stepRows(versionId,TestStepSection.ACTION,row.steps,row.expected),...this.stepRows(versionId,TestStepSection.POSTCONDITION,row.postconditions,row.postExpected)];
         if(steps.length)await tx.testStep.createMany({data:steps});

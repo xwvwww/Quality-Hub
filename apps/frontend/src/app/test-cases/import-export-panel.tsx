@@ -5,6 +5,7 @@ import { Download, FileSpreadsheet, Upload, X } from "lucide-react";
 import { api, apiBlob, apiUpload, session } from "@/lib/auth";
 
 type Project = { id: string; code: string; name: string };
+type FolderItem = { id: string; parentId: string | null; name: string };
 type Result = { valid: number; invalid: number; imported: number; errors: Array<{ row: number; message: string }>; preview: Array<{ title: string; priority: string; type: string }> };
 
 function save(blob: Blob, name: string) {
@@ -14,6 +15,7 @@ function save(blob: Blob, name: string) {
 
 export function ImportExportPanel() {
   const [open, setOpen] = useState(false), [projects, setProjects] = useState<Project[]>([]), [project, setProject] = useState("");
+  const [folders, setFolders] = useState<FolderItem[]>([]), [folder, setFolder] = useState("");
   const [file, setFile] = useState<File | null>(null), [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const canEdit = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(session.get()?.user.role ?? "");
@@ -28,13 +30,22 @@ export function ImportExportPanel() {
       setProjects(response.items); setProject(response.items[0]?.id ?? "");
     }).catch((reason) => setError(reason.message));
   }, [open, projects.length]);
+  useEffect(() => {
+    if (!open || !project) { setFolders([]); setFolder(""); return; }
+    api<FolderItem[]>(`/projects/${project}/test-case-folders`).then((items) => {
+      setFolders(items);
+      setFolder((current) => items.some((item) => item.id === current) ? current : "");
+    }).catch((reason) => setError(reason.message));
+  }, [open, project]);
 
   async function upload(mode: "validate" | "import") {
     if (!file || !project) return;
     setBusy(true); setError("");
     try {
       const body = new FormData(); body.append("file", file);
-      const response = await apiUpload<Result>(`/projects/${project}/test-cases/import?mode=${mode}`, body);
+      const params = new URLSearchParams({ mode });
+      if (folder) params.set("folderId", folder);
+      const response = await apiUpload<Result>(`/projects/${project}/test-cases/import?${params}`, body);
       setResult(response);
       if (mode === "import") setTimeout(() => location.reload(), 800);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Ошибка импорта"); }
@@ -47,6 +58,13 @@ export function ImportExportPanel() {
       save(await apiBlob(path), kind === "template" ? "test-cases-template.xlsx" : `test-cases.${kind}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Ошибка экспорта"); }
   }
+  function folderPath(id: string) {
+    const byId = new Map(folders.map((item) => [item.id, item]));
+    const parts: string[] = [];
+    let current = byId.get(id);
+    while (current) { parts.unshift(current.name); current = current.parentId ? byId.get(current.parentId) : undefined; }
+    return parts.join(" → ");
+  }
 
   if (!open) return null;
   return <div className="fixed inset-0 bg-slate-950/50 z-50 grid place-items-center p-4" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
@@ -58,6 +76,11 @@ export function ImportExportPanel() {
       <label className="font-semibold text-sm block mb-2">Проект</label>
       <select className="field mb-5" value={project} onChange={(event) => { setProject(event.target.value); setResult(null); }}>
         {projects.map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}
+      </select>
+      <label className="font-semibold text-sm block mb-2">Папка назначения для импорта</label>
+      <select className="field mb-5" value={folder} onChange={(event) => { setFolder(event.target.value); setResult(null); }}>
+        <option value="">Без папки</option>
+        {folders.map((item) => <option key={item.id} value={item.id}>{folderPath(item.id)}</option>)}
       </select>
       <div className="grid grid-cols-3 gap-3 mb-6">
         <button className="btn-secondary flex gap-2 justify-center" onClick={() => download("template")}><Download size={17}/>Шаблон XLSX</button>
