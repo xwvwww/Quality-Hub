@@ -1,23 +1,302 @@
-'use client';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { Activity, Bug, CheckCircle2, ClipboardCheck, FolderKanban, PlayCircle, TrendingUp } from 'lucide-react';
-import { AppShell } from '@/components/app-shell';
-import { api } from '@/lib/auth';
-type Summary={metrics:{projects:number;testCases:number;runs:number;defects:number;executed:number;passRate:number};results:Record<string,number>;recentRuns:Array<{id:string;name:string;project:{code:string;name:string};createdAt:string;total:number;passRate:number}>};
-type Analytics={metrics:{openDefects:number;duration:number};daily:Array<{date:string;total:number;passed:number;failed:number;blocked:number}>};
-type Profile={firstName:string};
-const resultItems=[['PASSED','Успешно','#22c55e'],['FAILED','Провалено','#ef4444'],['BLOCKED','Заблокировано','#f59e0b']] as const;
-export default function Dashboard(){
-  const[summary,setSummary]=useState<Summary|null>(null),[analytics,setAnalytics]=useState<Analytics|null>(null),[profile,setProfile]=useState<Profile|null>(null),[error,setError]=useState('');
-  useEffect(()=>{Promise.all([api<Summary>('/reports/summary'),api<Analytics>('/analytics?days=14'),api<Profile>('/profile')]).then(([s,a,p])=>{setSummary(s);setAnalytics(a);setProfile(p)}).catch(e=>setError(e.message))},[]);
-  const active=analytics?.daily.filter(item=>item.total)??[],max=Math.max(1,...active.map(item=>item.total));
-  const points=active.length===1?`0,${92-(active[0].total/max)*72} 100,${92-(active[0].total/max)*72}`:active.map((item,index)=>`${(index/(active.length-1))*100},${92-(item.total/max)*72}`).join(' ');
-  const metrics=[[FolderKanban,'Проекты',summary?.metrics.projects??'—'],[ClipboardCheck,'Тест-кейсы',summary?.metrics.testCases??'—'],[PlayCircle,'Тест-раны',summary?.metrics.runs??'—'],[CheckCircle2,'Успешность',summary?`${summary.metrics.passRate}%`:'—'],[Bug,'Открытые дефекты',analytics?.metrics.openDefects??'—']] as const;
-  return <AppShell><main className="p-7 max-w-7xl mx-auto"><div className="flex flex-wrap justify-between items-end gap-4 mb-7"><div><p className="text-muted text-sm m-0">Актуальная сводка качества</p><h1 className="text-3xl m-0 mt-1">Добрый день{profile?.firstName?`, ${profile.firstName}`:''}</h1></div><div className="flex gap-2"><Link href="/test-cases" className="btn-secondary no-underline">Тест-кейсы</Link><Link href="/test-runs" className="btn no-underline">Новый запуск</Link></div></div>{error&&<p className="p-3 bg-red-50 text-red-700 rounded-lg">{error}</p>}
-    <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">{metrics.map(([Icon,name,value],index)=><article className="card p-5" key={name}><div className="flex justify-between"><span className="text-muted text-sm">{name}</span><span className={`p-2 rounded-lg ${index===3?'bg-green-50 text-green-600':'bg-indigo-50 text-brand'}`}><Icon size={19}/></span></div><strong className="text-3xl block mt-3">{value}</strong></article>)}</section>
-    <section className="grid xl:grid-cols-[1.45fr_1fr] gap-5 mt-5"><article className="card p-6 overflow-hidden"><div className="flex justify-between items-start"><div><h2 className="m-0 text-lg">Динамика тестирования</h2><p className="text-muted text-sm mt-1">Активность за 14 дней</p></div><span className="p-2.5 rounded-xl bg-indigo-50 text-brand"><TrendingUp size={20}/></span></div>{active.length?<><div className="relative h-56 mt-3 rounded-2xl bg-gradient-to-b from-indigo-50/80 to-transparent border-b border-[var(--line)]"><div className="absolute inset-x-0 top-1/4 border-t border-dashed border-[var(--line)]"/><div className="absolute inset-x-0 top-2/4 border-t border-dashed border-[var(--line)]"/><div className="absolute inset-x-0 top-3/4 border-t border-dashed border-[var(--line)]"/><svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible"><defs><linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#6366f1" stopOpacity=".28"/><stop offset="1" stopColor="#6366f1" stopOpacity="0"/></linearGradient></defs><polygon points={`0,100 ${points} 100,100`} fill="url(#activityFill)"/><polyline points={points} fill="none" stroke="#6366f1" strokeWidth="2.2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/></svg><div className="absolute inset-0 flex justify-between">{active.map((item,index)=><span key={item.date} className="relative h-full flex-1 group"><i className="absolute w-2.5 h-2.5 rounded-full bg-white border-[3px] border-indigo-500 shadow-md -translate-x-1/2 -translate-y-1/2" style={{left:index===0?'0%':index===active.length-1?'100%':'50%',top:`${92-(item.total/max)*72}%`}}/><span className="hidden group-hover:block absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">{item.total} выполнений</span></span>)}</div></div><div className="flex justify-between text-[10px] text-muted mt-2"><span>{new Date(active[0].date+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'short'})}</span><span>{new Date(active.at(-1)!.date+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'short'})}</span></div></>:<div className="h-56 grid place-items-center"><div className="text-center"><TrendingUp className="mx-auto text-slate-300 mb-2"/><p className="text-muted m-0">За этот период выполнений нет</p></div></div>}</article>
-      <article className="card p-6"><div className="flex justify-between items-start"><div><h2 className="m-0 text-lg">Результаты выполнения</h2><p className="text-muted text-sm mt-1">Сводка по всем запускам</p></div><span className="text-3xl font-bold text-brand">{summary?.metrics.passRate??0}%</span></div><div className="mt-7"><div className="flex justify-between text-sm mb-2"><span className="text-muted">Всего выполнено</span><b>{summary?.metrics.executed??0}</b></div><div className="h-3 rounded-full bg-slate-100 overflow-hidden flex">{resultItems.map(([key,,color])=><span key={key} style={{width:`${summary?.metrics.executed?((summary.results[key]??0)/summary.metrics.executed)*100:0}%`,background:color}}/>)}</div></div><div className="grid gap-3 mt-7">{resultItems.map(([key,label,color])=><div className="flex justify-between items-center p-3.5 rounded-xl bg-slate-50" key={key}><span className="flex items-center gap-2 text-sm"><i className="w-2.5 h-2.5 rounded-full" style={{background:color}}/>{label}</span><b className="text-lg">{summary?.results[key]??0}</b></div>)}</div></article></section>
-    <article className="card p-6 mt-5"><h2 className="m-0 text-lg">Последние тест-раны</h2><div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">{summary?.recentRuns.map(run=><Link href={`/test-runs/${run.id}`} className="p-4 border border-[var(--line)] rounded-xl text-current no-underline hover:border-brand" key={run.id}><span className="text-xs text-muted">{run.project.code} · {new Date(run.createdAt).toLocaleDateString('ru-RU')}</span><b className="block mt-1 truncate">{run.name}</b><div className="h-2 bg-slate-100 rounded mt-4"><div className="h-full bg-green-500 rounded" style={{width:`${run.passRate}%`}}/></div><span className="text-xs text-muted">{run.passRate}% · {run.total} кейсов</span></Link>)}{!summary?.recentRuns.length&&<p className="text-muted"><Activity className="inline mr-2"/>Запусков пока нет</p>}</div></article>
-  </main></AppShell>;
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Activity,
+  ArrowUpRight,
+  Bug,
+  CheckCircle2,
+  ClipboardCheck,
+  FolderKanban,
+  PlayCircle,
+} from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { api } from "@/lib/auth";
+type Summary = {
+  metrics: {
+    projects: number;
+    testCases: number;
+    runs: number;
+    executed: number;
+    passRate: number;
+  };
+  results: Record<string, number>;
+  recentRuns: Array<{
+    id: string;
+    name: string;
+    project: { code: string };
+    createdAt: string;
+    total: number;
+    passRate: number;
+  }>;
+};
+type Analytics = {
+  metrics: { openDefects: number };
+  daily: Array<{
+    date: string;
+    total: number;
+    passed: number;
+    failed: number;
+    blocked: number;
+  }>;
+};
+const results = [
+  ["PASSED", "Успешно", "#10b981"],
+  ["FAILED", "Провалено", "#f43f5e"],
+  ["BLOCKED", "Заблокировано", "#f97316"],
+] as const;
+export default function Dashboard() {
+  const [s, setS] = useState<Summary | null>(null),
+    [a, setA] = useState<Analytics | null>(null),
+    [name, setName] = useState(""),
+    [error, setError] = useState("");
+  useEffect(() => {
+    Promise.all([
+      api<Summary>("/reports/summary"),
+      api<Analytics>("/analytics?days=14"),
+      api<{ firstName: string }>("/profile"),
+    ])
+      .then(([x, y, p]) => {
+        setS(x);
+        setA(y);
+        setName(p.firstName);
+      })
+      .catch((e) => setError(e.message));
+  }, []);
+  const days = a?.daily ?? [],
+    max = Math.max(1, ...days.map((x) => x.total));
+  const cards = [
+    [
+      FolderKanban,
+      "Проекты",
+      s?.metrics.projects ?? "—",
+      "/projects",
+      "bg-indigo-50 text-indigo-600",
+    ],
+    [
+      ClipboardCheck,
+      "Тест-кейсы",
+      s?.metrics.testCases ?? "—",
+      "/test-cases",
+      "bg-violet-50 text-violet-600",
+    ],
+    [
+      PlayCircle,
+      "Тест-раны",
+      s?.metrics.runs ?? "—",
+      "/test-runs",
+      "bg-blue-50 text-blue-600",
+    ],
+    [
+      CheckCircle2,
+      "Успешность",
+      s ? `${s.metrics.passRate}%` : "—",
+      "/analytics",
+      "bg-emerald-50 text-emerald-600",
+    ],
+    [
+      Bug,
+      "Открытые дефекты",
+      a?.metrics.openDefects ?? "—",
+      "/analytics",
+      "bg-rose-50 text-rose-600",
+    ],
+  ] as const;
+  return (
+    <AppShell>
+      <main className="p-7 max-w-7xl mx-auto">
+        <header className="flex flex-wrap justify-between items-end gap-4 mb-7">
+          <div>
+            <p className="text-muted text-sm m-0">Актуальная сводка качества</p>
+            <h1 className="text-3xl font-medium m-0 mt-1">
+              Добрый день{name ? `, ${name}` : ""}
+            </h1>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/test-cases" className="btn-secondary no-underline">
+              Тест-кейсы
+            </Link>
+            <Link href="/test-runs" className="btn no-underline">
+              Новый запуск
+            </Link>
+          </div>
+        </header>
+        {error && (
+          <p className="p-3 bg-red-50 text-red-700 rounded-xl">{error}</p>
+        )}
+        <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          {cards.map(([Icon, label, value, href, tone]) => (
+            <Link
+              href={href}
+              className="card p-5 text-current no-underline group hover:-translate-y-0.5 transition-transform"
+              key={label}
+            >
+              <div className="flex justify-between items-start">
+                <span className="text-muted text-sm">{label}</span>
+                <span className={`p-2.5 rounded-xl ${tone}`}>
+                  <Icon size={19} />
+                </span>
+              </div>
+              <div className="flex justify-between items-end mt-3">
+                <strong className="text-3xl">{value}</strong>
+                <ArrowUpRight
+                  className="text-muted opacity-0 group-hover:opacity-100"
+                  size={17}
+                />
+              </div>
+            </Link>
+          ))}
+        </section>
+        <section className="grid xl:grid-cols-[1.45fr_1fr] gap-5 mt-5">
+          <article className="card p-6">
+            <div className="flex justify-between">
+              <div>
+                <h2 className="m-0 text-xl font-medium">
+                  Динамика тестирования
+                </h2>
+                <p className="text-muted text-sm mt-1">
+                  Результаты за последние 14 дней
+                </p>
+              </div>
+              <Activity className="text-brand" />
+            </div>
+            <div className="h-64 flex items-end gap-2 mt-6 border-b border-[var(--line)]">
+              {days.map((d) => (
+                <div
+                  className="flex-1 h-full flex flex-col justify-end min-w-2"
+                  key={d.date}
+                  title={`${d.date}: ${d.total}`}
+                >
+                  <div
+                    className="flex flex-col-reverse rounded-t-lg overflow-hidden bg-slate-100"
+                    style={{
+                      height: `${Math.max(d.total ? 8 : 2, (d.total / max) * 92)}%`,
+                    }}
+                  >
+                    {d.total ? (
+                      <>
+                        <span
+                          className="bg-emerald-500"
+                          style={{ height: `${(d.passed / d.total) * 100}%` }}
+                        />
+                        <span
+                          className="bg-rose-500"
+                          style={{ height: `${(d.failed / d.total) * 100}%` }}
+                        />
+                        <span
+                          className="bg-orange-400"
+                          style={{ height: `${(d.blocked / d.total) * 100}%` }}
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-xs text-muted mt-3">
+              <span>
+                {days[0]
+                  ? new Date(days[0].date + "T00:00:00").toLocaleDateString(
+                      "ru-RU",
+                    )
+                  : "—"}
+              </span>
+              <span className="flex gap-3">
+                <i className="text-emerald-500">● успешно</i>
+                <i className="text-rose-500">● провалено</i>
+                <i className="text-orange-500">● блокировано</i>
+              </span>
+              <span>
+                {days.at(-1)
+                  ? new Date(
+                      days.at(-1)!.date + "T00:00:00",
+                    ).toLocaleDateString("ru-RU")
+                  : "—"}
+              </span>
+            </div>
+          </article>
+          <article className="card p-6">
+            <div className="flex justify-between">
+              <div>
+                <h2 className="m-0 text-xl font-medium">
+                  Результаты выполнения
+                </h2>
+                <p className="text-muted text-sm mt-1">
+                  По всем доступным запускам
+                </p>
+              </div>
+              <strong className="text-3xl text-brand">
+                {s?.metrics.passRate ?? 0}%
+              </strong>
+            </div>
+            <div className="mt-7 h-3 rounded-full bg-slate-100 overflow-hidden flex">
+              {results.map(([key, , color]) => (
+                <span
+                  key={key}
+                  style={{
+                    width: `${s?.metrics.executed ? ((s.results[key] ?? 0) / s.metrics.executed) * 100 : 0}%`,
+                    background: color,
+                  }}
+                />
+              ))}
+            </div>
+            <div className="space-y-3 mt-6">
+              {results.map(([key, label, color]) => (
+                <div
+                  className="flex justify-between p-4 rounded-xl bg-slate-50"
+                  key={key}
+                >
+                  <span>
+                    <i
+                      className="inline-block w-2.5 h-2.5 rounded-full mr-2"
+                      style={{ background: color }}
+                    />
+                    {label}
+                  </span>
+                  <b>{s?.results[key] ?? 0}</b>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+        <article className="card p-6 mt-5">
+          <div className="flex justify-between">
+            <h2 className="m-0 text-xl font-medium">Последние тест-раны</h2>
+            <Link href="/test-runs" className="text-brand text-sm no-underline">
+              Все запуски →
+            </Link>
+          </div>
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+            {s?.recentRuns.map((r) => (
+              <Link
+                href={`/test-runs/${r.id}`}
+                className="p-4 border border-[var(--line)] rounded-xl text-current no-underline hover:border-brand"
+                key={r.id}
+              >
+                <span className="text-xs text-muted">
+                  {r.project.code} ·{" "}
+                  {new Date(r.createdAt).toLocaleDateString("ru-RU")}
+                </span>
+                <b className="block mt-1 truncate">{r.name}</b>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden mt-4">
+                  <div
+                    className="h-full bg-emerald-500"
+                    style={{ width: `${r.passRate}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted">
+                  {r.passRate}% · {r.total} кейсов
+                </span>
+              </Link>
+            ))}
+            {!s?.recentRuns.length && (
+              <p className="text-muted col-span-full text-center py-8">
+                Запусков пока нет
+              </p>
+            )}
+          </div>
+        </article>
+      </main>
+    </AppShell>
+  );
 }
