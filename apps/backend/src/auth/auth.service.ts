@@ -1,87 +1,206 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { MembershipRole } from '@prisma/client';
-import { createHash, randomUUID } from 'crypto';
-import * as argon2 from 'argon2';
-import { PrismaService } from '../prisma/prisma.service';
-import { RequestContext } from '../audit/request-context';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { MembershipRole } from "@prisma/client";
+import { createHash, randomUUID } from "crypto";
+import * as argon2 from "argon2";
+import { PrismaService } from "../prisma/prisma.service";
+import { RequestContext } from "../audit/request-context";
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService, private jwt: JwtService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+  ) {}
 
-  async login(email: string, password: string, portal: 'user' | 'admin' = 'user') {
+  async login(
+    email: string,
+    password: string,
+    portal: "user" | "admin" = "user",
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       include: { memberships: { include: { organization: true } } },
     });
-    if (!user?.isActive || !(await argon2.verify(user.passwordHash, password))) {
-      throw new UnauthorizedException('Неверный email или пароль');
+    if (
+      !user?.isActive ||
+      !(await argon2.verify(user.passwordHash, password))
+    ) {
+      throw new UnauthorizedException("Неверный email или пароль");
     }
-    if (portal === 'admin' && !user.isSystemAdmin) throw new UnauthorizedException('Нет прав системного администратора');
-    if (portal === 'user' && user.isSystemAdmin) throw new UnauthorizedException('Используйте административный портал: http://localhost:3001');
+    if (portal === "admin" && !user.isSystemAdmin)
+      throw new UnauthorizedException("Нет прав системного администратора");
+    if (portal === "user" && user.isSystemAdmin)
+      throw new UnauthorizedException(
+        "Используйте административный портал: http://localhost:3001",
+      );
     const membership = user.memberships[0];
-    if (!membership) throw new UnauthorizedException('Пользователь не состоит в организации');
-    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    await this.prisma.auditLog.create({ data: { organizationId: membership.organizationId, userId: user.id, action: 'LOGIN_SUCCESS', entityType: 'USER', entityId: user.id, ipAddress: RequestContext.ip() } });
-    return this.issue(user.id, user.email, membership.organizationId, membership.role, undefined, user.isSystemAdmin);
+    if (!membership)
+      throw new UnauthorizedException("Пользователь не состоит в организации");
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        organizationId: membership.organizationId,
+        userId: user.id,
+        action: "LOGIN_SUCCESS",
+        entityType: "USER",
+        entityId: user.id,
+      },
+    });
+    return this.issue(
+      user.id,
+      user.email,
+      membership.organizationId,
+      membership.role,
+      undefined,
+      user.isSystemAdmin,
+    );
   }
 
   async requestPasswordReset(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, email: true, memberships: { select: { organizationId: true } } } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        memberships: { select: { organizationId: true } },
+      },
+    });
     if (user) {
-      const organizationIds = user.memberships.map(item => item.organizationId);
-      const admins = await this.prisma.organizationMember.findMany({ where: { organizationId: { in: organizationIds }, role: MembershipRole.ADMIN, user: { isActive: true } }, select: { userId: true } });
-      if (admins.length) await this.prisma.notification.createMany({ data: admins.map(admin => ({ userId: admin.userId, title: 'Запрос на сброс пароля', body: `Пользователь ${user.email} запросил восстановление доступа.`, url: '/administration' })) });
+      const organizationIds = user.memberships.map(
+        (item) => item.organizationId,
+      );
+      const admins = await this.prisma.organizationMember.findMany({
+        where: {
+          organizationId: { in: organizationIds },
+          role: MembershipRole.ADMIN,
+          user: { isActive: true },
+        },
+        select: { userId: true },
+      });
+      if (admins.length)
+        await this.prisma.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.userId,
+            title: "Запрос на сброс пароля",
+            body: `Пользователь ${user.email} запросил восстановление доступа.`,
+            url: "/administration",
+          })),
+        });
     }
-    return { success: true, message: 'Если аккаунт существует, администратор получил запрос.' };
+    return {
+      success: true,
+      message: "Если аккаунт существует, администратор получил запрос.",
+    };
   }
 
-  async refresh(raw: string, portal: 'user' | 'admin' = 'user') {
+  async refresh(raw: string, portal: "user" | "admin" = "user") {
     let payload: { sub: string; familyId: string };
     try {
-      payload = await this.jwt.verifyAsync(raw, { secret: process.env.JWT_REFRESH_SECRET });
+      payload = await this.jwt.verifyAsync(raw, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
     } catch {
-      throw new UnauthorizedException('Refresh token недействителен');
+      throw new UnauthorizedException("Refresh token недействителен");
     }
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: this.hash(raw) },
       include: { user: { include: { memberships: true } } },
     });
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
-      if (stored) await this.prisma.refreshToken.updateMany({ where: { familyId: stored.familyId }, data: { revokedAt: new Date() } });
-      throw new UnauthorizedException('Refresh token отозван');
+      if (stored)
+        await this.prisma.refreshToken.updateMany({
+          where: { familyId: stored.familyId },
+          data: { revokedAt: new Date() },
+        });
+      throw new UnauthorizedException("Refresh token отозван");
     }
-    if (portal === 'admin' && !stored.user.isSystemAdmin) throw new UnauthorizedException('Нет прав системного администратора');
-    if (portal === 'user' && stored.user.isSystemAdmin) throw new UnauthorizedException('Используйте административный портал: http://localhost:3001');
+    if (portal === "admin" && !stored.user.isSystemAdmin)
+      throw new UnauthorizedException("Нет прав системного администратора");
+    if (portal === "user" && stored.user.isSystemAdmin)
+      throw new UnauthorizedException(
+        "Используйте административный портал: http://localhost:3001",
+      );
     const membership = stored.user.memberships[0];
-    if (!stored.user.isActive || !membership) throw new UnauthorizedException('Доступ отозван');
-    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    return this.issue(stored.user.id, stored.user.email, membership.organizationId, membership.role, stored.familyId, stored.user.isSystemAdmin);
+    if (!stored.user.isActive || !membership)
+      throw new UnauthorizedException("Доступ отозван");
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { revokedAt: new Date() },
+    });
+    return this.issue(
+      stored.user.id,
+      stored.user.email,
+      membership.organizationId,
+      membership.role,
+      stored.familyId,
+      stored.user.isSystemAdmin,
+    );
   }
 
   async logout(raw?: string) {
-    if (raw) await this.prisma.refreshToken.updateMany({ where: { tokenHash: this.hash(raw), revokedAt: null }, data: { revokedAt: new Date() } });
+    if (raw)
+      await this.prisma.refreshToken.updateMany({
+        where: { tokenHash: this.hash(raw), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     return { success: true };
   }
 
   async currentSession(raw?: string) {
     if (!raw) return { id: null };
-    const item = await this.prisma.refreshToken.findUnique({ where: { tokenHash: this.hash(raw) }, select: { id: true, revokedAt: true, expiresAt: true } });
-    return { id: item && !item.revokedAt && item.expiresAt > new Date() ? item.id : null };
+    const item = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: this.hash(raw) },
+      select: { id: true, revokedAt: true, expiresAt: true },
+    });
+    return {
+      id:
+        item && !item.revokedAt && item.expiresAt > new Date() ? item.id : null,
+    };
   }
 
-  private async issue(sub: string, email: string, organizationId: string, role: MembershipRole, familyId: string = randomUUID(), systemAdmin = false) {
+  private async issue(
+    sub: string,
+    email: string,
+    organizationId: string,
+    role: MembershipRole,
+    familyId: string = randomUUID(),
+    systemAdmin = false,
+  ) {
     const claims = { sub, email, organizationId, role, systemAdmin };
-    const accessToken = await this.jwt.signAsync(claims, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: (process.env.ACCESS_TOKEN_TTL ?? '15m') as never });
+    const accessToken = await this.jwt.signAsync(claims, {
+      secret: process.env.JWT_ACCESS_SECRET,
+      expiresIn: (process.env.ACCESS_TOKEN_TTL ?? "15m") as never,
+    });
     const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7);
     // jti makes every rotated token unique even when two tokens are issued in the same second.
-    const refreshToken = await this.jwt.signAsync({ sub, familyId, jti: randomUUID() }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: `${days}d` as never });
-    await this.prisma.refreshToken.create({ data: { userId: sub, tokenHash: this.hash(refreshToken), familyId, expiresAt: new Date(Date.now() + days * 86_400_000) } });
-    return { accessToken, refreshToken, user: { id: sub, email, organizationId, role, systemAdmin } };
+    const refreshToken = await this.jwt.signAsync(
+      { sub, familyId, jti: randomUUID() },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: `${days}d` as never,
+      },
+    );
+    await this.prisma.refreshToken.create({
+      data: {
+        userId: sub,
+        tokenHash: this.hash(refreshToken),
+        familyId,
+        expiresAt: new Date(Date.now() + days * 86_400_000),
+        ipAddress: RequestContext.ip(),
+      },
+    });
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: sub, email, organizationId, role, systemAdmin },
+    };
   }
 
   private hash(token: string) {
-    return createHash('sha256').update(token).digest('hex');
+    return createHash("sha256").update(token).digest("hex");
   }
 }
