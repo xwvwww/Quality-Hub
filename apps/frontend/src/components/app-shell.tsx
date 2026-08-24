@@ -50,9 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [UserRoundCog, "Организация", "/teams"],
     [BarChart3, t.reports, "/reports"],
     [Gauge, t.analytics, "/analytics"],
-    ...(["ADMIN", "QA_LEAD"].includes(role ?? "")
-      ? [[Users, t.admin, "/administration"] as const]
-      : []),
+    ...(role === "ADMIN" ? [[Users, t.admin, "/administration"] as const] : []),
   ] as const;
   useEffect(() => {
     setHydrated(true);
