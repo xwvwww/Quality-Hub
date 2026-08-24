@@ -73,7 +73,7 @@ export default function TestCasesPage() {
   const [projectTotal, setProjectTotal] = useState(0);
   const [cases, setCases] = useState<CasesResponse>({
     items: [],
-    meta: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
+    meta: { page: 1, pageSize: 10, total: 0, totalPages: 1 },
   });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -135,7 +135,7 @@ export default function TestCasesPage() {
     try {
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: "20",
+        pageSize: "10",
       });
       if (folderId) {
         params.set("folderId", folderId);
@@ -258,6 +258,19 @@ export default function TestCasesPage() {
       await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
+    }
+  }
+  async function removeCase(item: CaseItem) {
+    if (!confirm(`Удалить тест-кейс ${item.displayId} «${item.title}»? Оставшиеся номера будут пересчитаны.`)) return;
+    try {
+      await api(`/projects/${projectId}/test-cases/bulk`, {
+        method: "POST",
+        body: JSON.stringify({ ids: [item.id], action: "delete" }),
+      });
+      if (page === 1) await loadCases(); else setPage(1);
+      await Promise.all([loadFolders(), loadProjectTotal()]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ошибка удаления");
     }
   }
   async function bulk(action: string) {
@@ -471,6 +484,11 @@ export default function TestCasesPage() {
                   placeholder="Поиск по названию или номеру"
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <button className="btn-secondary px-3" disabled={page <= 1} onClick={() => setPage(page - 1)}>←</button>
+                <span className="text-sm text-muted whitespace-nowrap">{page} / {cases.meta.totalPages}</span>
+                <button className="btn-secondary px-3" disabled={page >= cases.meta.totalPages} onClick={() => setPage(page + 1)}>→</button>
+              </div>
               {selected.length > 0 && (
                 <>
                   <span className="self-center text-sm">
@@ -592,6 +610,7 @@ export default function TestCasesPage() {
                         </td>
                         <td className="p-4">
                           {canEdit && (
+                            <div className="flex items-center gap-1">
                             <button
                               className="icon-btn"
                               title="Клонировать"
@@ -602,6 +621,17 @@ export default function TestCasesPage() {
                             >
                               <Copy size={16} />
                             </button>
+                            <button
+                              className="icon-btn text-red-600 ml-1"
+                              title="Удалить"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeCase(item);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                            </div>
                           )}
                         </td>
                       </tr>

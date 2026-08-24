@@ -176,7 +176,7 @@ export class TestCasesService {
       this.prisma.testCase.findMany({
         where,
         select: caseSelect,
-        orderBy: { updatedAt: "desc" },
+        orderBy: { caseNumber: "asc" },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
@@ -534,8 +534,15 @@ export class TestCasesService {
       throw new NotFoundException("Часть тест-кейсов не найдена");
     if (dto.action === BulkAction.DELETE) {
       try {
-        await this.prisma.testCase.deleteMany({
-          where: { id: { in: dto.ids }, projectId },
+        await this.prisma.$transaction(async (tx) => {
+          await tx.testCase.deleteMany({ where: { id: { in: dto.ids }, projectId } });
+          const remaining = await tx.testCase.findMany({ where: { projectId }, orderBy: { caseNumber: "asc" }, select: { id: true, caseNumber: true } });
+          for (let index = 0; index < remaining.length; index++) {
+            const nextNumber = index + 1;
+            if (remaining[index].caseNumber !== nextNumber)
+              await tx.testCase.update({ where: { id: remaining[index].id }, data: { caseNumber: nextNumber } });
+          }
+          await tx.project.update({ where: { id: projectId }, data: { nextTestCaseNumber: remaining.length + 1 } });
         });
         return { affected: found };
       } catch (error) {
