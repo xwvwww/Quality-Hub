@@ -11,6 +11,7 @@ import {
   UserCheck,
   UserX,
   Users,
+  Trash2,
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -184,6 +185,24 @@ export default function AdministrationPage() {
       );
     }
   }
+  async function removeMember(member: Member) {
+    if (
+      !confirm(
+        `Удалить ${member.user.firstName} ${member.user.lastName} из организации?`,
+      )
+    )
+      return;
+    try {
+      await api(`/users/${member.user.id}`, { method: "DELETE" });
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось удалить участника",
+      );
+    }
+  }
   return (
     <AppShell>
       <main
@@ -339,6 +358,13 @@ export default function AdministrationPage() {
                                 onClick={() => edit(member)}
                               >
                                 <Pencil size={17} />
+                              </button>
+                              <button
+                                className="icon-btn text-red-600"
+                                title="Удалить из организации"
+                                onClick={() => removeMember(member)}
+                              >
+                                <Trash2 size={17} />
                               </button>
                               <button
                                 className="icon-btn"

@@ -83,10 +83,10 @@ type Page = {
   meta: { page: number; pageSize: number; total: number; totalPages: number };
 };
 const statuses = [
-  ["PASSED", "Пройден", "#16a34a"],
-  ["FAILED", "Провален", "#dc2626"],
-  ["BLOCKED", "Заблокирован", "#d97706"],
-  ["SKIPPED", "Пропущен", "#64748b"],
+  ["PASSED", "Пройден", "#059669"],
+  ["FAILED", "Провален", "#e11d48"],
+  ["BLOCKED", "Заблокирован", "#ea580c"],
+  ["SKIPPED", "Пропущен", "#475569"],
   ["RETEST", "Ретест", "#7c3aed"],
 ] as const;
 const statusNames: Record<string, string> = {
@@ -508,7 +508,7 @@ export default function RunExecution() {
                       background:
                         statuses.find(
                           ([value]) => value === item.status,
-                        )?.[2] ?? "#64748b",
+                        )?.[2] ?? "#475569",
                     }}
                   >
                     {item.status === "NOT_RUN" ? "Ожидает" : "Сохранён"}
