@@ -190,8 +190,8 @@ export class AuthService {
         tokenHash: this.hash(refreshToken),
         familyId,
         expiresAt: new Date(Date.now() + days * 86_400_000),
-        ipAddress: RequestContext.ip(),
       },
+      select: { id: true },
     });
     return {
       accessToken,
