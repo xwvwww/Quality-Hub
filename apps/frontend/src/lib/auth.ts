@@ -91,19 +91,40 @@ export async function api<T>(path: string, init: RequestInit = {}) {
 }
 
 export async function apiUpload<T>(path: string, formData: FormData) {
-  const current = session.get();
-  const response = await fetch(`/api${path}`, {
+  let current = session.get();
+  const send = () => fetch(`/api${path}`, {
     method: "POST",
     credentials: "include",
     headers: { Authorization: `Bearer ${current?.accessToken ?? ""}` },
     body: formData,
   });
+  let response = await send();
+  if (response.status === 401 && current) {
+    const refreshed = await fetch(current.user.systemAdmin ? "/api/auth/admin/refresh" : "/api/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (refreshed.ok) {
+      current = await refreshed.json();
+      session.set(current!);
+      response = await send();
+    }
+  }
   if (!response.ok)
     throw new Error(
-      (await response.json().catch(() => null))?.message ??
+      formatUploadError(await response.json().catch(() => null)) ??
         "Ошибка загрузки файла",
     );
   return response.json() as Promise<T>;
+}
+
+function formatUploadError(payload: any): string | null {
+  const value = payload?.message;
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join(". ");
+  return typeof value?.message === "string" ? value.message : null;
 }
 
 export async function apiBlob(path: string) {
