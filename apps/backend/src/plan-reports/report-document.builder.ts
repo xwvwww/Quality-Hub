@@ -185,11 +185,30 @@ export class ReportDocumentBuilder {
               width: "*",
             },
             {
-              text: statusLabels[testCase.status] ?? testCase.status,
-              color: statusColors[testCase.status],
-              bold: true,
-              alignment: "center",
-              width: 105,
+              table: {
+                widths: [88],
+                body: [
+                  [
+                    {
+                      text: statusLabels[testCase.status] ?? testCase.status,
+                      color: statusColors[testCase.status],
+                      bold: true,
+                      alignment: "center",
+                      fillColor:
+                        testCase.status === "PASSED"
+                          ? "#ecfdf5"
+                          : testCase.status === "FAILED"
+                            ? "#fff1f2"
+                            : testCase.status === "BLOCKED"
+                              ? "#fff7ed"
+                              : "#f8fafc",
+                      margin: [6, 4, 6, 4],
+                    },
+                  ],
+                ],
+              },
+              layout: "noBorders",
+              width: 100,
             },
             {
               text: `Факт ${duration(testCase.actualDuration)} · План ${duration(testCase.estimatedDuration)}`,
