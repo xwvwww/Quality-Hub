@@ -11,7 +11,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { api } from "@/lib/auth";
+import { api, session } from "@/lib/auth";
 type Summary = {
   metrics: {
     projects: number;
@@ -45,7 +45,7 @@ const results = [
   ["FAILED", "Провалено", "#f43f5e"],
   ["BLOCKED", "Заблокировано", "#f97316"],
 ] as const;
-export default function Dashboard() {
+function WorkspaceDashboard() {
   const [s, setS] = useState<Summary | null>(null),
     [a, setA] = useState<Analytics | null>(null),
     [name, setName] = useState(""),
@@ -298,5 +298,138 @@ export default function Dashboard() {
         </article>
       </main>
     </AppShell>
+  );
+}
+
+type AdminStats = {
+  organizations: number;
+  users: number;
+  activeUsers: number;
+  blockedUsers: number;
+  auditEvents: number;
+  recentLogins: number;
+  roles: Record<string, number>;
+};
+function AdminDashboard() {
+  const [data, setData] = useState<AdminStats | null>(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    api<AdminStats>("/system-admin/stats")
+      .then(setData)
+      .catch((e) => setError(e.message));
+  }, []);
+  const cards = [
+    [
+      FolderKanban,
+      "Организации",
+      data?.organizations ?? "—",
+      "/administration?tab=organizations",
+      "Рабочие пространства",
+    ],
+    [
+      ClipboardCheck,
+      "Пользователи",
+      data?.users ?? "—",
+      "/administration?tab=users",
+      `${data?.activeUsers ?? 0} активных`,
+    ],
+    [
+      CheckCircle2,
+      "Активные аккаунты",
+      data?.activeUsers ?? "—",
+      "/administration?tab=activity",
+      `${data?.blockedUsers ?? 0} отключено`,
+    ],
+    [
+      Activity,
+      "События аудита",
+      data?.auditEvents ?? "—",
+      "/administration?tab=audit",
+      `${data?.recentLogins ?? 0} входов за 7 дней`,
+    ],
+  ] as const;
+  return (
+    <AppShell>
+      <main className="p-7 max-w-7xl mx-auto">
+        <header className="mb-7">
+          <p className="text-muted text-sm m-0">
+            Состояние платформы и безопасность
+          </p>
+          <h1 className="text-3xl font-medium m-0 mt-1">
+            Обзор администратора
+          </h1>
+        </header>
+        {error && (
+          <p className="p-3 bg-red-50 text-red-700 rounded-xl">{error}</p>
+        )}
+        <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {cards.map(([Icon, label, value, href, hint]) => (
+            <Link
+              href={href}
+              className="card p-5 text-current no-underline group hover:-translate-y-0.5 transition-transform"
+              key={label}
+            >
+              <div className="flex justify-between">
+                <span className="text-muted text-sm">{label}</span>
+                <Icon className="text-brand" size={20} />
+              </div>
+              <b className="text-3xl block mt-3">{value}</b>
+              <span className="text-xs text-muted">{hint}</span>
+              <ArrowUpRight
+                className="float-right -mt-5 opacity-0 group-hover:opacity-100"
+                size={16}
+              />
+            </Link>
+          ))}
+        </section>
+        <section className="grid xl:grid-cols-[1.2fr_1fr] gap-5 mt-5">
+          <article className="card p-6">
+            <h2 className="font-medium mt-0">Состояние системы</h2>
+            <div className="grid sm:grid-cols-2 gap-3 mt-5">
+              <div className="p-5 rounded-xl bg-emerald-50 text-emerald-800">
+                <span className="flex items-center gap-2">
+                  <i className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+                  API работает
+                </span>
+                <b className="block text-2xl mt-2">Online</b>
+              </div>
+              <div className="p-5 rounded-xl bg-blue-50 text-blue-800">
+                <span className="flex items-center gap-2">
+                  <i className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+                  PostgreSQL
+                </span>
+                <b className="block text-2xl mt-2">Online</b>
+              </div>
+            </div>
+          </article>
+          <article className="card p-6">
+            <h2 className="font-medium mt-0">Распределение ролей</h2>
+            <div className="space-y-3 mt-5">
+              {Object.entries(data?.roles ?? {}).map(([role, count]) => (
+                <div
+                  className="flex justify-between items-center p-3 rounded-xl bg-slate-50"
+                  key={role}
+                >
+                  <span>{role.replaceAll("_", " ")}</span>
+                  <b className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full">
+                    {count}
+                  </b>
+                </div>
+              ))}
+              {!Object.keys(data?.roles ?? {}).length && (
+                <p className="text-muted">Данные загружаются…</p>
+              )}
+            </div>
+          </article>
+        </section>
+      </main>
+    </AppShell>
+  );
+}
+export default function Dashboard() {
+  return session.get()?.user.systemAdmin ? (
+    <AdminDashboard />
+  ) : (
+    <WorkspaceDashboard />
   );
 }
