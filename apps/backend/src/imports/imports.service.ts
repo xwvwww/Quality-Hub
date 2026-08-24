@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Priority, TestCaseStatus, TestStepSection, TestType } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Row = { title:string; description:string; status:TestCaseStatus; priority:Priority; type:TestType; durationSeconds:number; preconditions:string; preExpected:string; steps:string; expected:string; postconditions:string; postExpected:string };
@@ -89,6 +90,22 @@ export class ImportsService {
   private duration(seconds:number){return`${Math.floor(seconds/3600)?`${Math.floor(seconds/3600)}h `:''}${Math.floor(seconds%3600/60)?`${Math.floor(seconds%3600/60)}m `:''}${seconds%60?`${seconds%60}s`:''}`.trim()||'0s'}
   private lines(value:string){return value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean)}
   private csv(text:string){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);return lines.slice(1).map(line=>{const output:string[]=[];let current='',quoted=false;for(let index=0;index<line.length;index++){const character=line[index];if(character==='"'&&line[index+1]==='"'){current+='"';index++}else if(character==='"')quoted=!quoted;else if((character===';'||character===',')&&!quoted){output.push(current);current=''}else current+=character}output.push(current);return output})}
-  private async xlsx(buffer:Buffer){const workbook=new ExcelJS.Workbook();try{await workbook.xlsx.load(buffer as any)}catch{throw new BadRequestException('Не удалось прочитать XLSX. Скачайте новый шаблон и проверьте файл')}const sheet=workbook.worksheets[0];if(!sheet)throw new BadRequestException('В XLSX нет листов');const output:string[][]=[];sheet.eachRow((row,number)=>{if(number>1)output.push(headers.map((_,index)=>String(row.getCell(index+1).text??'')))});return output}
+  private async xlsx(buffer:Buffer){
+    const workbook=new ExcelJS.Workbook();
+    try{await workbook.xlsx.load(buffer as any)}catch{
+      try{await workbook.xlsx.load(await this.normalizeWorkbookXml(buffer) as any)}catch{throw new BadRequestException('Не удалось прочитать XLSX. Откройте файл в Excel, сохраните как XLSX и повторите импорт')}
+    }
+    const sheet=workbook.worksheets[0];if(!sheet)throw new BadRequestException('В XLSX нет листов');const output:string[][]=[];sheet.eachRow((row,number)=>{if(number>1){const values=headers.map((_,index)=>String(row.getCell(index+1).text??''));if(values.some(value=>value.trim()))output.push(values)}});return output
+  }
+  private async normalizeWorkbookXml(buffer:Buffer){
+    const archive=await JSZip.loadAsync(buffer);
+    const entries=Object.values(archive.files).filter(entry=>!entry.dir&&entry.name.startsWith('xl/')&&entry.name.endsWith('.xml'));
+    if(!entries.length)throw new Error('XML XLSX отсутствует');
+    await Promise.all(entries.map(async entry=>{
+      const xml=await entry.async('string');
+      archive.file(entry.name,xml.replace(/(<\/?)x:/g,'$1').replace(/xmlns:x=/g,'xmlns='));
+    }));
+    return archive.generateAsync({type:'nodebuffer'});
+  }
   private async project(org:string,id:string){const project=await this.prisma.project.findFirst({where:{id,organizationId:org},select:{id:true,code:true}});if(!project)throw new NotFoundException('Проект не найден');return project}
 }
