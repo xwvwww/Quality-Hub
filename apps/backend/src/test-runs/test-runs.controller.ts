@@ -11,7 +11,7 @@ import { TestRunsService } from './test-runs.service';
 
 type AuthRequest = Request & { user: JwtUser };
 const managers = [MembershipRole.ADMIN, MembershipRole.QA_LEAD] as const;
-const executors = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER] as const;
+const executors = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER, MembershipRole.BUSINESS_ANALYST] as const;
 
 @ApiTags('test-runs') @ApiBearerAuth() @Controller('test-runs')
 export class TestRunsController {

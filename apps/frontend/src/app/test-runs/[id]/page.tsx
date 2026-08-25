@@ -141,19 +141,23 @@ function LocalPreview({
   file: File;
   onRemove: () => void;
 }) {
-  const [src, setSrc] = useState("");
+  const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     const url = URL.createObjectURL(file);
     setSrc(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
   return (
-    <div className="relative">
-      <img
-        src={src}
-        alt={file.name}
-        className="w-28 h-20 object-cover rounded-lg border border-[var(--line)]"
-      />
+    <div className="relative w-28 h-20">
+      {src ? (
+        <img
+          src={src}
+          alt={file.name}
+          className="w-28 h-20 object-cover rounded-lg border border-[var(--line)]"
+        />
+      ) : (
+        <div className="w-28 h-20 rounded-lg bg-slate-100 animate-pulse border border-[var(--line)]" />
+      )}
       <button
         type="button"
         onClick={onRemove}
@@ -186,7 +190,7 @@ export default function RunExecution() {
   const [elapsed, setElapsed] = useState(0),
     [timerRunning, setTimerRunning] = useState(true);
   const shortcutRef = useRef({ key: "", at: 0 });
-  const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER"].includes(
+  const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(
     session.get()?.user.role ?? "",
   );
   const loadOverview = useCallback(
