@@ -180,7 +180,8 @@ export default function RunExecution() {
     [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
-    [selected, setSelected] = useState("");
+    [selected, setSelected] = useState(""),
+    [positionRestored, setPositionRestored] = useState(false);
   const [actual, setActual] = useState(""),
     [comment, setComment] = useState(""),
     [duration, setDuration] = useState(""),
@@ -190,6 +191,9 @@ export default function RunExecution() {
   const [elapsed, setElapsed] = useState(0),
     [timerRunning, setTimerRunning] = useState(true);
   const shortcutRef = useRef({ key: "", at: 0 });
+  const activeCaseRef = useRef<HTMLButtonElement | null>(null);
+  const selectFirstOnNextPageRef = useRef(false);
+  const positionKey = `quality-hub:test-run:${id}:position`;
   const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(
     session.get()?.user.role ?? "",
   );
@@ -203,29 +207,65 @@ export default function RunExecution() {
     if (status) query.set("status", status);
     const value = await api<Page>(`/test-runs/${id}/cases?${query}`);
     setData(value);
-    setSelected((current) =>
-      value.items.some((item) => item.id === current)
+    setSelected((current) => {
+      if (selectFirstOnNextPageRef.current) {
+        selectFirstOnNextPageRef.current = false;
+        return value.items[0]?.id ?? "";
+      }
+      return value.items.some((entry) => entry.id === current)
         ? current
-        : ((
-            value.items.find((item) => item.status === "NOT_RUN") ??
-            value.items[0]
-          )?.id ?? ""),
-    );
+        : ((value.items.find((entry) => entry.status === "NOT_RUN") ??
+            value.items[0])?.id ?? "");
+    });
   }, [id, page, search, status]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(positionKey) ?? "null") as
+        | { page?: number; selected?: string }
+        | null;
+      if (saved?.page && saved.page > 0) setPage(saved.page);
+      if (saved?.selected) setSelected(saved.selected);
+    } catch {
+      localStorage.removeItem(positionKey);
+    } finally {
+      setPositionRestored(true);
+    }
+  }, [positionKey]);
   useEffect(() => {
     loadOverview().catch((e) => setError(e.message));
   }, [loadOverview]);
   useEffect(() => {
+    if (!positionRestored) return;
     const timer = setTimeout(
       () => loadCases().catch((e) => setError(e.message)),
       250,
     );
     return () => clearTimeout(timer);
-  }, [loadCases]);
+  }, [loadCases, positionRestored]);
   const item = useMemo(
     () => data.items.find((entry) => entry.id === selected) ?? null,
     [data.items, selected],
   );
+  useEffect(() => {
+    if (!positionRestored || !selected) return;
+    localStorage.setItem(positionKey, JSON.stringify({ page, selected }));
+    requestAnimationFrame(() =>
+      activeCaseRef.current?.scrollIntoView({ block: "nearest" }),
+    );
+  }, [page, positionKey, positionRestored, selected, data.items]);
+
+  function goToNextCase() {
+    const currentIndex = data.items.findIndex((entry) => entry.id === selected);
+    const next = data.items[currentIndex + 1];
+    if (next) {
+      setSelected(next.id);
+      return;
+    }
+    if (page < data.meta.totalPages) {
+      selectFirstOnNextPageRef.current = true;
+      setPage((value) => value + 1);
+    }
+  }
   useEffect(() => {
     const latest = item?.results[0];
     setElapsed(latest?.durationSeconds ?? 0);
@@ -380,6 +420,7 @@ export default function RunExecution() {
               {data.items.map((entry) => (
                 <button
                   key={entry.id}
+                  ref={entry.id === selected ? activeCaseRef : undefined}
                   onClick={() => setSelected(entry.id)}
                   className={`w-full border-0 text-left p-3 rounded-lg mb-1 cursor-pointer ${entry.id === selected ? "bg-indigo-50 text-brand" : "bg-transparent hover:bg-slate-50"}`}
                 >
@@ -611,6 +652,20 @@ export default function RunExecution() {
                         </button>
                       ))}
                     </div>
+
+                    <button
+                      type="button"
+                      className="btn-secondary w-full mt-3 flex items-center justify-center gap-2"
+                      onClick={goToNextCase}
+                      disabled={
+                        saving ||
+                        (data.items.findIndex((entry) => entry.id === selected) ===
+                          data.items.length - 1 &&
+                          page >= data.meta.totalPages)
+                      }
+                    >
+                      Следующий кейс <ChevronRight size={17} />
+                    </button>
 
                     <label className="mt-4 border border-dashed border-indigo-300 bg-indigo-50/60 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer text-center">
                       <Paperclip className="text-brand" />
