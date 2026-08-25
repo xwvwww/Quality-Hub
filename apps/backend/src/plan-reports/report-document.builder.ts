@@ -53,6 +53,40 @@ function section(name: string) {
       : "Шаги";
 }
 
+function escapeSvg(value: unknown) {
+  return String(value ?? "—")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function pill(
+  text: string,
+  foreground: string,
+  background: string,
+  width = 150,
+): { svg: string; width: number } {
+  return {
+    svg: `<svg width="${width}" height="27" viewBox="0 0 ${width} 27" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="27" rx="13.5" fill="${background}"/><text x="${width / 2}" y="17.5" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" font-weight="600" fill="${foreground}">${escapeSvg(text)}</text></svg>`,
+    width,
+  };
+}
+
+function labeledPill(
+  label: string,
+  text: string,
+  foreground: string,
+  background: string,
+): Content {
+  return {
+    stack: [
+      { text: label, fontSize: 7, color: "#64748b", margin: [3, 0, 0, 4] },
+      pill(text, foreground, background),
+    ],
+  } as Content;
+}
+
 @Injectable()
 export class ReportDocumentBuilder {
   private readonly fonts = {
@@ -187,31 +221,20 @@ export class ReportDocumentBuilder {
               width: "*",
             },
             {
-              table: {
-                widths: [88],
-                body: [
-                  [
-                    {
-                      text: statusLabels[testCase.status] ?? testCase.status,
-                      color: statusColors[testCase.status],
-                      bold: true,
-                      alignment: "center",
-                      fillColor:
-                        testCase.status === "PASSED"
-                          ? "#ecfdf5"
-                          : testCase.status === "FAILED"
-                            ? "#fff1f2"
-                            : testCase.status === "BLOCKED"
-                              ? "#fff7ed"
-                              : "#f8fafc",
-                      margin: [6, 4, 6, 4],
-                    },
-                  ],
-                ],
-              },
-              layout: "noBorders",
+              ...pill(
+                statusLabels[testCase.status] ?? testCase.status,
+                statusColors[testCase.status],
+                testCase.status === "PASSED"
+                  ? "#dcfce7"
+                  : testCase.status === "FAILED"
+                    ? "#ffe4e6"
+                    : testCase.status === "BLOCKED"
+                      ? "#ffedd5"
+                      : "#f1f5f9",
+                92,
+              ),
               width: 100,
-            },
+            } as Content,
             {
               text: `Факт ${duration(testCase.actualDuration)} · План ${duration(testCase.estimatedDuration)}`,
               alignment: "right",
@@ -224,92 +247,29 @@ export class ReportDocumentBuilder {
         },
         {
           columns: [
-            {
-              table: {
-                widths: ["*"],
-                body: [
-                  [
-                    {
-                      stack: [
-                        { text: "ТИП", fontSize: 7, color: "#64748b" },
-                        {
-                          text: testCase.type,
-                          bold: true,
-                          color: "#0369a1",
-                          margin: [0, 3, 0, 0],
-                        },
-                      ],
-                      fillColor: "#f0f9ff",
-                      margin: [8, 6, 8, 6],
-                    },
-                  ],
-                ],
-              },
-              layout: "noBorders",
-              width: "31%",
-            },
-            {
-              table: {
-                widths: ["*"],
-                body: [
-                  [
-                    {
-                      stack: [
-                        { text: "ПРИОРИТЕТ", fontSize: 7, color: "#64748b" },
-                        {
-                          text:
-                            priorityLabels[testCase.priority] ??
-                            testCase.priority,
-                          bold: true,
-                          color:
-                            testCase.priority === "HIGHEST"
-                              ? "#b91c1c"
-                              : testCase.priority === "HIGH"
-                                ? "#c2410c"
-                                : "#6d28d9",
-                          margin: [0, 3, 0, 0],
-                        },
-                      ],
-                      fillColor:
-                        testCase.priority === "HIGHEST"
-                          ? "#fff1f2"
-                          : testCase.priority === "HIGH"
-                            ? "#fff7ed"
-                            : "#f5f3ff",
-                      margin: [8, 6, 8, 6],
-                    },
-                  ],
-                ],
-              },
-              layout: "noBorders",
-              width: "31%",
-            },
-            {
-              table: {
-                widths: ["*"],
-                body: [
-                  [
-                    {
-                      stack: [
-                        { text: "ИСПОЛНИТЕЛЬ", fontSize: 7, color: "#64748b" },
-                        {
-                          text: testCase.executor
-                            ? `${testCase.executor.firstName} ${testCase.executor.lastName}`
-                            : "—",
-                          bold: true,
-                          color: "#047857",
-                          margin: [0, 3, 0, 0],
-                        },
-                      ],
-                      fillColor: "#ecfdf5",
-                      margin: [8, 6, 8, 6],
-                    },
-                  ],
-                ],
-              },
-              layout: "noBorders",
-              width: "38%",
-            },
+            labeledPill("ТИП", testCase.type, "#0369a1", "#e0f2fe"),
+            labeledPill(
+              "ПРИОРИТЕТ",
+              priorityLabels[testCase.priority] ?? testCase.priority,
+              testCase.priority === "HIGHEST"
+                ? "#b91c1c"
+                : testCase.priority === "HIGH"
+                  ? "#c2410c"
+                  : "#6d28d9",
+              testCase.priority === "HIGHEST"
+                ? "#ffe4e6"
+                : testCase.priority === "HIGH"
+                  ? "#ffedd5"
+                  : "#ede9fe",
+            ),
+            labeledPill(
+              "ИСПОЛНИТЕЛЬ",
+              testCase.executor
+                ? `${testCase.executor.firstName} ${testCase.executor.lastName}`
+                : "—",
+              "#047857",
+              "#d1fae5",
+            ),
           ],
           columnGap: 8,
           margin: [0, 10, 0, 2],
