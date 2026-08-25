@@ -314,6 +314,23 @@ export default function TestCasesPage() {
       setError(reason instanceof Error ? reason.message : "Ошибка перемещения");
     }
   }
+  async function bulkValue(action: "setPriority" | "setStatus", value: string) {
+    if (!selected.length || !value) return;
+    try {
+      await api(`/projects/${projectId}/test-cases/bulk`, {
+        method: "POST",
+        body: JSON.stringify({
+          ids: selected,
+          action,
+          ...(action === "setPriority" ? { priority: value } : { status: value }),
+        }),
+      });
+      setSelected([]);
+      await loadCases();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ошибка массового изменения");
+    }
+  }
 
   function Tree({
     parent = "root",
@@ -504,6 +521,30 @@ export default function TestCasesPage() {
                     <FolderInput size={16} />
                     Переместить
                   </button>
+                  <select
+                    className="field !w-auto !py-2 text-sm"
+                    defaultValue=""
+                    onChange={(event) => {
+                      void bulkValue("setPriority", event.target.value);
+                      event.currentTarget.value = "";
+                    }}
+                  >
+                    <option value="" disabled>Приоритет</option>
+                    {Object.entries(labels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                  </select>
+                  <select
+                    className="field !w-auto !py-2 text-sm"
+                    defaultValue=""
+                    onChange={(event) => {
+                      void bulkValue("setStatus", event.target.value);
+                      event.currentTarget.value = "";
+                    }}
+                  >
+                    <option value="" disabled>Статус</option>
+                    <option value="READY">Готов</option>
+                    <option value="DRAFT">Черновик</option>
+                    <option value="ARCHIVED">Архив</option>
+                  </select>
                   <button
                     className="btn-secondary"
                     onClick={() => bulk("archive")}

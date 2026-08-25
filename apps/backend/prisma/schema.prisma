@@ -376,6 +376,8 @@ model TestRunCase {
   assigneeId String?      @db.Uuid
   status     RunStatus    @default(NOT_RUN)
   position   Int          @default(0)
+  lockedById String?      @db.Uuid
+  lockExpiresAt DateTime?
   testRun    TestRun      @relation(fields: [testRunId], references: [id], onDelete: Cascade)
   testCase   TestCase     @relation(fields: [testCaseId], references: [id])
   results    TestResult[]
@@ -383,6 +385,7 @@ model TestRunCase {
 
   @@unique([testRunId, testCaseId])
   @@index([testRunId, status, position])
+  @@index([lockExpiresAt])
 }
 
 model TestResult {

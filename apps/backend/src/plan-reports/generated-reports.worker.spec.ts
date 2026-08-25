@@ -29,7 +29,8 @@ describe('GeneratedReportsWorker', () => {
     const prisma = {
       generatedReport: { findFirst: jest.fn().mockResolvedValue(pdfJob), updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({}) },
       testRunCase: { findMany: jest.fn().mockResolvedValue([{ id: 'run-case-1', testCaseId: 'case-1' }]) },
-      attachment: { findMany: jest.fn().mockResolvedValue([{ entityId: 'run-case-1', fileName: 'proof.png', mimeType: 'image/png', size: 3, storageKey: 'run-results/proof.png' }]) },
+      testStepResult: { findMany: jest.fn().mockResolvedValue([]) },
+      attachment: { findMany: jest.fn().mockResolvedValue([{ entityType: 'TEST_RUN_CASE', entityId: 'run-case-1', fileName: 'proof.png', mimeType: 'image/png', size: 3, storageKey: 'run-results/proof.png' }]) },
     };
     const snapshot = { plan: { project: { code: 'SKZ' } }, run: { id: 'run-1' }, cases: [{ id: 'case-1' }], generatedAt: new Date() };
     const documents = { pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')) };

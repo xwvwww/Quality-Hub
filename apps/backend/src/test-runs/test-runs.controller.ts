@@ -29,14 +29,22 @@ export class TestRunsController {
   @Get(':id/cases/:runCaseId/history') history(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.history(req.user.organizationId, id, runCaseId); }
   @Get(':id') detail(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(req.user.organizationId, id); }
   @Post() @Roles(...managers) create(@Req() req: AuthRequest, @Body() dto: CreateTestRunDto) { return this.service.create(req.user.organizationId, req.user.sub, dto); }
-  @Post(':id/cases/:runCaseId/results') @Roles(...executors) result(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { return this.service.saveResult(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
-  @Post(':id/cases/:runCaseId/results/fast') @Roles(...executors) fastResult(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { return this.service.saveResultFast(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
+  @Post(':id/cases/:runCaseId/results') @Roles(...executors) async result(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { await this.service.assertCanEdit(req.user.organizationId, id, runCaseId, req.user.sub); return this.service.saveResult(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
+  @Post(':id/cases/:runCaseId/results/fast') @Roles(...executors) async fastResult(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { await this.service.assertCanEdit(req.user.organizationId, id, runCaseId, req.user.sub); return this.service.saveResultFast(req.user.organizationId, id, runCaseId, req.user.sub, dto); }
   @Post(':id/cases/:runCaseId/attachments') @Roles(...executors) @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 10 * 1024 * 1024 } }))
   upload(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @UploadedFiles() files: BufferedUpload[]) {
     validateUploads(files, ['image/png', 'image/jpeg', 'image/webp'], 10 * 1024 * 1024);
     return this.service.upload(req.user.organizationId, id, runCaseId, req.user.sub, files);
   }
+  @Post(':id/cases/:runCaseId/steps/:stepId/attachments') @Roles(...executors) @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadStep(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Param('stepId', ParseUUIDPipe) stepId: string, @UploadedFiles() files: BufferedUpload[]) {
+    validateUploads(files, ['image/png', 'image/jpeg', 'image/webp'], 10 * 1024 * 1024);
+    return this.service.uploadStep(req.user.organizationId, id, runCaseId, stepId, req.user.sub, files);
+  }
+  @Post(':id/cases/:runCaseId/lock') @Roles(...executors) lock(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.lock(req.user.organizationId, id, runCaseId, req.user.sub); }
+  @Delete(':id/cases/:runCaseId/lock') @Roles(...executors) unlock(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.unlock(req.user.organizationId, id, runCaseId, req.user.sub); }
   @Patch(':id/cases/:runCaseId/assignee') @Roles(...managers) assign(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: AssignRunCaseDto) { return this.service.assign(req.user.organizationId, id, runCaseId, dto); }
   @Post(':id/complete') @Roles(...managers) complete(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.complete(req.user.organizationId, id); }
   @Delete(':id') @Roles(...managers) remove(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.remove(req.user.organizationId, id); }

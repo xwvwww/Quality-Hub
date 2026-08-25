@@ -61,7 +61,9 @@ export class GeneratedReportsWorker implements OnModuleInit, OnModuleDestroy {
     if (!snapshot.run) return snapshot;
     const runCases = await this.prisma.testRunCase.findMany({ where: { testRunId: snapshot.run.id }, select: { id: true, testCaseId: true } });
     const caseByRunCase = new Map(runCases.map((item) => [item.id, item.testCaseId]));
-    const files = await this.prisma.attachment.findMany({ where: { organizationId, entityType: 'TEST_RUN_CASE', entityId: { in: runCases.map((item) => item.id) }, mimeType: { in: ['image/png', 'image/jpeg'] } }, orderBy: { createdAt: 'asc' }, take: 20, select: { entityId: true, fileName: true, mimeType: true, size: true, storageKey: true } });
+    const stepResults = await this.prisma.testStepResult.findMany({ where: { testResult: { runCaseId: { in: runCases.map((item) => item.id) } } }, select: { id: true, testResult: { select: { runCaseId: true } } } });
+    const caseByStepResult = new Map(stepResults.map((item) => [item.id, caseByRunCase.get(item.testResult.runCaseId)]));
+    const files = await this.prisma.attachment.findMany({ where: { organizationId, OR: [{ entityType: 'TEST_RUN_CASE', entityId: { in: runCases.map((item) => item.id) } }, { entityType: 'TEST_STEP_RESULT', entityId: { in: stepResults.map((item) => item.id) } }], mimeType: { in: ['image/png', 'image/jpeg'] } }, orderBy: { createdAt: 'asc' }, take: 40, select: { entityType: true, entityId: true, fileName: true, mimeType: true, size: true, storageKey: true } });
     const root = resolve(process.env.UPLOAD_DIR ?? 'uploads');
     let total = 0;
     const grouped = new Map<string, Array<{ fileName: string; dataUrl: string }>>();
@@ -72,7 +74,7 @@ export class GeneratedReportsWorker implements OnModuleInit, OnModuleDestroy {
       const buffer = await readFile(path).catch(() => null);
       if (!buffer) continue;
       total += buffer.length;
-      const testCaseId = caseByRunCase.get(file.entityId);
+      const testCaseId = file.entityType === 'TEST_STEP_RESULT' ? caseByStepResult.get(file.entityId) : caseByRunCase.get(file.entityId);
       if (!testCaseId) continue;
       const group = grouped.get(testCaseId) ?? [];
       group.push({ fileName: file.fileName, dataUrl: `data:${file.mimeType};base64,${buffer.toString('base64')}` });

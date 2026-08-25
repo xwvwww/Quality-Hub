@@ -27,4 +27,8 @@ describe('TestRunsService', () => {
     expect(result.summary.progress).toBe(50);
     expect((prisma as any).testRun.update).not.toHaveBeenCalled();
   });
+  it('prevents saving while another user holds an active case lock', async () => {
+    const prisma={testRunCase:{findFirst:jest.fn().mockResolvedValue({lockedById:'other-user',lockExpiresAt:new Date(Date.now()+60_000)})}} as never;
+    await expect(new TestRunsService(prisma).assertCanEdit('org','run','case','current-user')).rejects.toThrow('другой пользователь');
+  });
 });

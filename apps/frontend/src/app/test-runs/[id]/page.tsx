@@ -193,7 +193,12 @@ export default function RunExecution() {
   const [stepResults, setStepResults] = useState<
     Record<string, { status: string; comment: string }>
   >({});
+  const [stepFiles, setStepFiles] = useState<Record<string, File[]>>({});
   const [history, setHistory] = useState<RunCase["results"]>([]);
+  const [caseLock, setCaseLock] = useState<{
+    acquired: boolean;
+    owner?: string;
+  } | null>(null);
   const [elapsed, setElapsed] = useState(0),
     [timerRunning, setTimerRunning] = useState(true);
   const shortcutRef = useRef({ key: "", at: 0 });
@@ -205,6 +210,7 @@ export default function RunExecution() {
   const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(
     session.get()?.user.role ?? "",
   );
+  const canEditCurrent = canExecute && caseLock?.acquired !== false;
   const loadOverview = useCallback(
     () => api<Overview>(`/test-runs/${id}/overview`).then(setRun),
     [id],
@@ -320,6 +326,7 @@ export default function RunExecution() {
         (latest?.durationSeconds ? formatDuration(latest.durationSeconds) : ""),
     );
     setStepResults(draft?.stepResults ?? {});
+    setStepFiles({});
     setFiles([]);
     draftLoadedRef.current = true;
   }, [item?.id]);
@@ -371,13 +378,36 @@ export default function RunExecution() {
     };
   }, [id, item?.id]);
   useEffect(() => {
+    if (!item || !canExecute) {
+      setCaseLock(null);
+      return;
+    }
+    let active = true;
+    const acquire = () =>
+      api<{ acquired: boolean; owner?: string }>(
+        `/test-runs/${id}/cases/${item.id}/lock`,
+        { method: "POST" },
+      )
+        .then((value) => active && setCaseLock(value))
+        .catch((reason) => active && setError(reason.message));
+    void acquire();
+    const heartbeat = setInterval(acquire, 30_000);
+    return () => {
+      active = false;
+      clearInterval(heartbeat);
+      void api(`/test-runs/${id}/cases/${item.id}/lock`, {
+        method: "DELETE",
+      }).catch(() => undefined);
+    };
+  }, [id, item?.id, canExecute]);
+  useEffect(() => {
     const timer = setInterval(() => {
       if (timerRunning) setElapsed((value) => value + 1);
     }, 1000);
     return () => clearInterval(timer);
   }, [timerRunning]);
   async function save(nextStatus: string) {
-    if (!item) return;
+    if (!item || !canEditCurrent) return;
     const parsed = duration.trim() ? parseDuration(duration) : elapsed;
     const seconds = parsed === null ? null : Math.max(1, parsed);
     if (seconds === null) {
@@ -405,8 +435,18 @@ export default function RunExecution() {
         files.forEach((file) => form.append("files", file));
         await apiUpload(`/test-runs/${id}/cases/${item.id}/attachments`, form);
       }
+      for (const [stepId, selectedFiles] of Object.entries(stepFiles)) {
+        if (!selectedFiles.length || !stepResults[stepId]?.status) continue;
+        const form = new FormData();
+        selectedFiles.forEach((file) => form.append("files", file));
+        await apiUpload(
+          `/test-runs/${id}/cases/${item.id}/steps/${stepId}/attachments`,
+          form,
+        );
+      }
       setDuration(formatDuration(seconds));
       setFiles([]);
+      setStepFiles({});
       localStorage.removeItem(`quality-hub:test-run:${id}:draft:${item.id}`);
       await Promise.all([loadOverview(), loadCases()]);
     } catch (reason) {
@@ -454,7 +494,7 @@ export default function RunExecution() {
     };
     addEventListener("keydown", handler);
     return () => removeEventListener("keydown", handler);
-  }, [saving, item?.id, duration, elapsed, actual, comment, files, data.items, page]);
+  }, [saving, item?.id, duration, elapsed, actual, comment, files, data.items, page, canEditCurrent]);
   if (!run)
     return (
       <AppShell>
@@ -662,20 +702,37 @@ export default function RunExecution() {
                                     </button>
                                   </div>
                                   {stepResults[step.id]?.status === "FAILED" && (
-                                    <input
-                                      className="field !p-1.5 text-[10px]"
-                                      placeholder="Комментарий"
-                                      value={stepResults[step.id]?.comment ?? ""}
-                                      onChange={(event) =>
-                                        setStepResults((current) => ({
-                                          ...current,
-                                          [step.id]: {
-                                            status: "FAILED",
-                                            comment: event.target.value,
-                                          },
-                                        }))
-                                      }
-                                    />
+                                    <>
+                                      <input
+                                        className="field !p-1.5 text-[10px]"
+                                        placeholder="Комментарий"
+                                        value={stepResults[step.id]?.comment ?? ""}
+                                        onChange={(event) =>
+                                          setStepResults((current) => ({
+                                            ...current,
+                                            [step.id]: {
+                                              status: "FAILED",
+                                              comment: event.target.value,
+                                            },
+                                          }))
+                                        }
+                                      />
+                                      <label className="text-[10px] text-brand cursor-pointer text-center rounded-md bg-indigo-50 py-1">
+                                        📎 {stepFiles[step.id]?.length ? `${stepFiles[step.id].length} файл.` : "Вложение"}
+                                        <input
+                                          type="file"
+                                          accept="image/png,image/jpeg,image/webp"
+                                          multiple
+                                          className="hidden"
+                                          onChange={(event) =>
+                                            setStepFiles((current) => ({
+                                              ...current,
+                                              [step.id]: Array.from(event.target.files ?? []).slice(0, 5),
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -779,7 +836,12 @@ export default function RunExecution() {
                   </div>
                 </div>
 
-                {canExecute && (
+                {caseLock?.acquired === false && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-3 mb-4 text-sm">
+                    Кейс сейчас выполняет {caseLock.owner || "другой пользователь"}. Поля временно доступны только для просмотра.
+                  </div>
+                )}
+                {canEditCurrent && (
                   <>
                     <label className="text-xs font-semibold block mb-2">
                       Фактический результат
