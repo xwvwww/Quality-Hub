@@ -6,7 +6,7 @@ import { api, apiBlob, apiUpload, session } from "@/lib/auth";
 
 type Project = { id: string; code: string; name: string };
 type FolderItem = { id: string; parentId: string | null; name: string };
-type Result = { valid: number; invalid: number; imported: number; errors: Array<{ row: number; message: string }>; preview: Array<{ title: string; priority: string; type: string }> };
+type Result = { valid: number; invalid: number; imported: number; errors: Array<{ row: number; message: string }>; preview: Array<{ title: string; description: string; status: string; priority: string; type: string; durationSeconds: number; steps: string }> };
 
 function save(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob), link = document.createElement("a");
@@ -101,6 +101,26 @@ export function ImportExportPanel() {
           <div className="p-4 bg-indigo-50 rounded"><b className="text-2xl text-brand">{result.imported}</b><span className="block text-sm">Импортировано</span></div>
         </div>
         {result.errors.map((item) => <p className="text-red-700 text-sm" key={item.row}>Строка {item.row}: {item.message}</p>)}
+        {result.preview.length > 0 && <div className="mt-4 border border-[var(--line)] rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-[var(--line)] flex justify-between gap-3">
+            <b>Предпросмотр импорта</b>
+            <span className="text-xs text-muted">Первые {result.preview.length} из {result.valid}</span>
+          </div>
+          <div className="max-h-72 overflow-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 bg-white shadow-sm text-left text-xs text-muted">
+                <tr><th className="p-3">#</th><th className="p-3">Название</th><th className="p-3">Статус</th><th className="p-3">Приоритет</th><th className="p-3">Тип</th><th className="p-3">Шаги</th></tr>
+              </thead>
+              <tbody>{result.preview.map((item, index) => <tr className="border-t border-[var(--line)]" key={`${item.title}-${index}`}>
+                <td className="p-3 text-muted">{index + 2}</td>
+                <td className="p-3 min-w-64"><b>{item.title}</b>{item.description && <span className="block text-xs text-muted line-clamp-1">{item.description}</span>}</td>
+                <td className="p-3"><span className="rounded-full bg-indigo-50 text-indigo-700 px-2.5 py-1 text-xs">{item.status}</span></td>
+                <td className="p-3">{item.priority}</td><td className="p-3">{item.type}</td>
+                <td className="p-3 text-center">{item.steps?.split(/\r?\n/).filter(Boolean).length ?? 0}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </div>}
         {result.invalid === 0 && result.imported === 0 && <button className="btn w-full mt-4" disabled={busy} onClick={() => upload("import")}>Импортировать {result.valid} тест-кейсов</button>}
       </div>}
     </section>

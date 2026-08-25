@@ -502,6 +502,22 @@ export class ReportDocumentBuilder {
           },
           margin: [0, 0, 0, 16],
         },
+        ...(snapshot.comparison
+          ? [
+              {
+                table: {
+                  widths: ["*", "*", "*"],
+                  body: [[
+                    { stack: [{ text: "СРАВНЕНИЕ С ПРОШЛЫМ ЗАПУСКОМ", fontSize: 7, color: "#64748b" }, { text: `${snapshot.comparison.passRateDelta !== null && snapshot.comparison.passRateDelta >= 0 ? "+" : ""}${snapshot.comparison.passRateDelta ?? 0}% успешности`, bold: true, fontSize: 15, color: (snapshot.comparison.passRateDelta ?? 0) >= 0 ? "#047857" : "#be123c", margin: [0, 5, 0, 0] }], fillColor: "#eef2ff", margin: [10, 9, 10, 9] },
+                    { stack: [{ text: "НОВЫЕ РЕГРЕССИИ", fontSize: 7, color: "#9f1239" }, { text: String(snapshot.comparison.regressions), bold: true, fontSize: 15, color: "#be123c", margin: [0, 5, 0, 0] }], fillColor: "#fff1f2", margin: [10, 9, 10, 9] },
+                    { stack: [{ text: "ИСПРАВЛЕНО", fontSize: 7, color: "#047857" }, { text: String(snapshot.comparison.fixed), bold: true, fontSize: 15, color: "#047857", margin: [0, 5, 0, 0] }], fillColor: "#ecfdf5", margin: [10, 9, 10, 9] },
+                  ]],
+                },
+                layout: "noBorders",
+                margin: [0, 0, 0, 16],
+              } as Content,
+            ]
+          : []),
         {
           text: "Подробные результаты тест-кейсов",
           fontSize: 14,

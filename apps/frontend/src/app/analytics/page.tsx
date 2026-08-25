@@ -134,6 +134,21 @@ export default function Analytics() {
         ],
       ]
     : [];
+  const runComparisons = data
+    ? data.runTrends
+        .map((run, index, all) => {
+          const previous = all
+            .slice(0, index)
+            .reverse()
+            .find((item) => item.projectCode === run.projectCode);
+          return {
+            ...run,
+            delta: previous ? run.passRate - previous.passRate : null,
+          };
+        })
+        .slice(-6)
+        .reverse()
+    : [];
   return (
     <AppShell>
       <main className="p-7 max-w-7xl mx-auto">
@@ -356,10 +371,7 @@ export default function Analytics() {
                     </Link>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    {data.runTrends
-                      .slice(-6)
-                      .reverse()
-                      .map((r) => (
+                    {runComparisons.map((r) => (
                         <Link
                           href={`/test-runs/${r.id}`}
                           className="p-4 rounded-xl border border-[var(--line)] text-current no-underline hover:border-brand"
@@ -376,9 +388,12 @@ export default function Analytics() {
                               style={{ width: `${r.passRate}%` }}
                             />
                           </div>
-                          <span className="text-xs text-muted">
-                            {r.executed}/{r.total} · {r.passRate}%
-                          </span>
+                          <div className="flex justify-between gap-2 mt-1 text-xs">
+                            <span className="text-muted">{r.executed}/{r.total} · {r.passRate}%</span>
+                            {r.delta !== null && <span className={`font-semibold ${r.delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              {r.delta >= 0 ? "↑" : "↓"} {Math.abs(r.delta)}% к прошлому
+                            </span>}
+                          </div>
                         </Link>
                       ))}
                   </div>

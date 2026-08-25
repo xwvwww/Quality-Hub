@@ -18,6 +18,9 @@ type Case = {
   priority: string;
   type: string;
   status: string;
+  previousStatus: string | null;
+  regression: boolean;
+  fixed: boolean;
   estimatedDuration: number;
   actualDuration: number;
   actualResult: string | null;
@@ -44,6 +47,14 @@ type Report = {
     name: string;
     createdAt: string;
     completedAt: string | null;
+  } | null;
+  comparison: {
+    runId: string;
+    runName: string;
+    passRate: number | null;
+    passRateDelta: number | null;
+    regressions: number;
+    fixed: number;
   } | null;
   metrics: {
     total: number;
@@ -166,7 +177,7 @@ export default function PlanReport() {
               formatDuration(m.actualDuration),
               `Оценка ${formatDuration(m.estimatedDuration)}`,
             ],
-            ["Дефекты", m.defects, `${m.FAILED} провалено`],
+            ["Провалено", m.FAILED, `${Math.round((m.FAILED / Math.max(1, m.executed)) * 100)}% выполненных`],
           ].map(([name, value, hint]) => (
             <article className="card p-5" key={name}>
               <span className="text-muted text-sm">{name}</span>
@@ -175,6 +186,24 @@ export default function PlanReport() {
             </article>
           ))}
         </section>
+        {data.comparison && (
+          <section className="card p-6 mt-5 bg-gradient-to-r from-indigo-50/80 to-cyan-50/60">
+            <div className="flex flex-wrap justify-between gap-4 items-center">
+              <div>
+                <span className="text-xs uppercase tracking-wider text-muted">Сравнение с прошлым запуском</span>
+                <h2 className="m-0 mt-1">{data.comparison.runName}</h2>
+              </div>
+              <div className={`rounded-full px-4 py-2 font-semibold ${Number(data.comparison.passRateDelta) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                {Number(data.comparison.passRateDelta) >= 0 ? "↑" : "↓"} {Math.abs(data.comparison.passRateDelta ?? 0)}% успешности
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3 mt-4">
+              <div className="rounded-xl bg-white/80 p-4"><span className="text-xs text-muted">Прошлая успешность</span><b className="block text-2xl">{data.comparison.passRate ?? 0}%</b></div>
+              <div className="rounded-xl bg-rose-50 p-4"><span className="text-xs text-rose-700">Новые регрессии</span><b className="block text-2xl text-rose-700">{data.comparison.regressions}</b></div>
+              <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-emerald-700">Исправлено</span><b className="block text-2xl text-emerald-700">{data.comparison.fixed}</b></div>
+            </div>
+          </section>
+        )}
         <section className="card p-6 mt-5">
           <h2 className="mt-0">Распределение результатов</h2>
           <div className="grid grid-cols-6 gap-3">
