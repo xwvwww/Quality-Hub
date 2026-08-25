@@ -193,6 +193,8 @@ export default function RunExecution() {
   const shortcutRef = useRef({ key: "", at: 0 });
   const activeCaseRef = useRef<HTMLButtonElement | null>(null);
   const selectFirstOnNextPageRef = useRef(false);
+  const selectLastOnPreviousPageRef = useRef(false);
+  const draftLoadedRef = useRef(false);
   const positionKey = `quality-hub:test-run:${id}:position`;
   const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(
     session.get()?.user.role ?? "",
@@ -211,6 +213,10 @@ export default function RunExecution() {
       if (selectFirstOnNextPageRef.current) {
         selectFirstOnNextPageRef.current = false;
         return value.items[0]?.id ?? "";
+      }
+      if (selectLastOnPreviousPageRef.current) {
+        selectLastOnPreviousPageRef.current = false;
+        return value.items.at(-1)?.id ?? "";
       }
       return value.items.some((entry) => entry.id === current)
         ? current
@@ -266,17 +272,66 @@ export default function RunExecution() {
       setPage((value) => value + 1);
     }
   }
+  function goToPreviousCase() {
+    const currentIndex = data.items.findIndex((entry) => entry.id === selected);
+    const previous = data.items[currentIndex - 1];
+    if (previous) {
+      setSelected(previous.id);
+      return;
+    }
+    if (page > 1) {
+      selectLastOnPreviousPageRef.current = true;
+      setPage((value) => value - 1);
+    }
+  }
   useEffect(() => {
+    draftLoadedRef.current = false;
     const latest = item?.results[0];
-    setElapsed(latest?.durationSeconds ?? 0);
-    setTimerRunning(!latest);
-    setActual(latest?.actualResult ?? "");
-    setComment(latest?.comment ?? "");
+    let draft: {
+      actual?: string;
+      comment?: string;
+      duration?: string;
+      elapsed?: number;
+      timerRunning?: boolean;
+    } | null = null;
+    if (item) {
+      try {
+        draft = JSON.parse(
+          localStorage.getItem(`quality-hub:test-run:${id}:draft:${item.id}`) ??
+            "null",
+        );
+      } catch {
+        localStorage.removeItem(`quality-hub:test-run:${id}:draft:${item.id}`);
+      }
+    }
+    setElapsed(draft?.elapsed ?? latest?.durationSeconds ?? 0);
+    setTimerRunning(draft?.timerRunning ?? !latest);
+    setActual(draft?.actual ?? latest?.actualResult ?? "");
+    setComment(draft?.comment ?? latest?.comment ?? "");
     setDuration(
-      latest?.durationSeconds ? formatDuration(latest.durationSeconds) : "",
+      draft?.duration ??
+        (latest?.durationSeconds ? formatDuration(latest.durationSeconds) : ""),
     );
     setFiles([]);
+    draftLoadedRef.current = true;
   }, [item?.id]);
+  useEffect(() => {
+    if (!item || !draftLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      localStorage.setItem(
+        `quality-hub:test-run:${id}:draft:${item.id}`,
+        JSON.stringify({
+          actual,
+          comment,
+          duration,
+          elapsed,
+          timerRunning,
+          savedAt: new Date().toISOString(),
+        }),
+      );
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [id, item?.id, actual, comment, duration, elapsed, timerRunning]);
   useEffect(() => {
     const timer = setInterval(() => {
       if (timerRunning) setElapsed((value) => value + 1);
@@ -311,6 +366,7 @@ export default function RunExecution() {
       }
       setDuration(formatDuration(seconds));
       setFiles([]);
+      localStorage.removeItem(`quality-hub:test-run:${id}:draft:${item.id}`);
       await Promise.all([loadOverview(), loadCases()]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
@@ -327,6 +383,16 @@ export default function RunExecution() {
       )
         return;
       const key = event.key.toLowerCase();
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        goToNextCase();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goToPreviousCase();
+        return;
+      }
       const statusByKey: Record<string, string> = {
         p: "PASSED",
         f: "FAILED",
@@ -347,7 +413,7 @@ export default function RunExecution() {
     };
     addEventListener("keydown", handler);
     return () => removeEventListener("keydown", handler);
-  }, [saving, item?.id, duration, elapsed, actual, comment, files]);
+  }, [saving, item?.id, duration, elapsed, actual, comment, files, data.items, page]);
   if (!run)
     return (
       <AppShell>
@@ -422,7 +488,7 @@ export default function RunExecution() {
                   key={entry.id}
                   ref={entry.id === selected ? activeCaseRef : undefined}
                   onClick={() => setSelected(entry.id)}
-                  className={`w-full border-0 text-left p-3 rounded-lg mb-1 cursor-pointer ${entry.id === selected ? "bg-indigo-50 text-brand" : "bg-transparent hover:bg-slate-50"}`}
+                  className={`w-full border-0 text-left p-3 rounded-lg mb-1 cursor-pointer [content-visibility:auto] [contain-intrinsic-size:72px] ${entry.id === selected ? "bg-indigo-50 text-brand" : "bg-transparent hover:bg-slate-50"}`}
                 >
                   <div className="flex justify-between gap-2">
                     <b className="text-xs">{entry.testCase.displayId}</b>
@@ -575,6 +641,9 @@ export default function RunExecution() {
                       <ChevronRight size={18} />
                     </button>
                   </div>
+                  <p className="text-[10px] text-muted text-center mt-3 mb-0">
+                    ←/→ навигация · PP пройден · FF провален · BB заблокирован
+                  </p>
                 </div>
 
                 <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 p-4 my-4">
