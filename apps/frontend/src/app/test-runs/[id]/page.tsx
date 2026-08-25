@@ -547,17 +547,34 @@ export default function RunExecution() {
                       {statusNames[item.status] ?? item.status}
                     </h3>
                   </div>
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-                    style={{
-                      background:
-                        statuses.find(
-                          ([value]) => value === item.status,
-                        )?.[2] ?? "#475569",
-                    }}
-                  >
-                    {item.status === "NOT_RUN" ? "Ожидает" : "Сохранён"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-semibold text-white"
+                      style={{
+                        background:
+                          statuses.find(
+                            ([value]) => value === item.status,
+                          )?.[2] ?? "#475569",
+                      }}
+                    >
+                      {item.status === "NOT_RUN" ? "Ожидает" : "Сохранён"}
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-btn shrink-0"
+                      title="Следующий кейс"
+                      aria-label="Следующий кейс"
+                      onClick={goToNextCase}
+                      disabled={
+                        saving ||
+                        (data.items.findIndex((entry) => entry.id === selected) ===
+                          data.items.length - 1 &&
+                          page >= data.meta.totalPages)
+                      }
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-100 p-4 my-4">
@@ -652,20 +669,6 @@ export default function RunExecution() {
                         </button>
                       ))}
                     </div>
-
-                    <button
-                      type="button"
-                      className="btn-secondary w-full mt-3 flex items-center justify-center gap-2"
-                      onClick={goToNextCase}
-                      disabled={
-                        saving ||
-                        (data.items.findIndex((entry) => entry.id === selected) ===
-                          data.items.length - 1 &&
-                          page >= data.meta.totalPages)
-                      }
-                    >
-                      Следующий кейс <ChevronRight size={17} />
-                    </button>
 
                     <label className="mt-4 border border-dashed border-indigo-300 bg-indigo-50/60 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer text-center">
                       <Paperclip className="text-brand" />
