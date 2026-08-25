@@ -65,10 +65,10 @@ function pill(
   text: string,
   foreground: string,
   background: string,
-  width = 150,
+  width = 108,
 ): { svg: string; width: number } {
   return {
-    svg: `<svg width="${width}" height="27" viewBox="0 0 ${width} 27" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="27" rx="13.5" fill="${background}"/><text x="${width / 2}" y="17.5" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" font-weight="600" fill="${foreground}">${escapeSvg(text)}</text></svg>`,
+    svg: `<svg width="${width}" height="19" viewBox="0 0 ${width} 19" xmlns="http://www.w3.org/2000/svg"><rect width="${width}" height="19" rx="9.5" fill="${background}"/><text x="${width / 2}" y="12.7" text-anchor="middle" font-family="Roboto, sans-serif" font-size="7.5" font-weight="600" fill="${foreground}">${escapeSvg(text)}</text></svg>`,
     width,
   };
 }
@@ -81,7 +81,7 @@ function labeledPill(
 ): Content {
   return {
     stack: [
-      { text: label, fontSize: 7, color: "#64748b", margin: [3, 0, 0, 4] },
+      { text: label, fontSize: 7, color: "#64748b", margin: [2, 0, 0, 3] },
       pill(text, foreground, background),
     ],
   } as Content;
@@ -231,7 +231,7 @@ export class ReportDocumentBuilder {
                     : testCase.status === "BLOCKED"
                       ? "#ffedd5"
                       : "#f1f5f9",
-                92,
+                72,
               ),
               width: 100,
             } as Content,
