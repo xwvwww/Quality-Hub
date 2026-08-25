@@ -271,6 +271,7 @@ model TestStep {
   action         String
   expectedResult String
   version        TestCaseVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  results        TestStepResult[]
 
   @@unique([versionId, section, position])
 }
@@ -394,8 +395,23 @@ model TestResult {
   executedById    String      @db.Uuid
   createdAt       DateTime    @default(now())
   runCase         TestRunCase @relation(fields: [runCaseId], references: [id], onDelete: Cascade)
+  stepResults     TestStepResult[]
 
   @@index([runCaseId, createdAt])
+}
+
+model TestStepResult {
+  id           String     @id @default(uuid()) @db.Uuid
+  testResultId String     @db.Uuid
+  stepId       String     @db.Uuid
+  status       RunStatus
+  comment      String?
+  createdAt    DateTime   @default(now())
+  testResult   TestResult @relation(fields: [testResultId], references: [id], onDelete: Cascade)
+  step         TestStep   @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([testResultId, stepId])
+  @@index([stepId, createdAt])
 }
 
 model Defect {

@@ -49,11 +49,13 @@ type RunCase = {
     };
   };
   results: Array<{
+    id?: string;
     status: string;
     actualResult: string | null;
     comment: string | null;
     durationSeconds: number;
     createdAt: string;
+    stepResults?: Array<{ stepId: string; status: string; comment: string | null }>;
   }>;
   attachments: Attachment[];
 };
@@ -188,6 +190,10 @@ export default function RunExecution() {
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
     [files, setFiles] = useState<File[]>([]);
+  const [stepResults, setStepResults] = useState<
+    Record<string, { status: string; comment: string }>
+  >({});
+  const [history, setHistory] = useState<RunCase["results"]>([]);
   const [elapsed, setElapsed] = useState(0),
     [timerRunning, setTimerRunning] = useState(true);
   const shortcutRef = useRef({ key: "", at: 0 });
@@ -293,6 +299,7 @@ export default function RunExecution() {
       duration?: string;
       elapsed?: number;
       timerRunning?: boolean;
+      stepResults?: Record<string, { status: string; comment: string }>;
     } | null = null;
     if (item) {
       try {
@@ -312,6 +319,7 @@ export default function RunExecution() {
       draft?.duration ??
         (latest?.durationSeconds ? formatDuration(latest.durationSeconds) : ""),
     );
+    setStepResults(draft?.stepResults ?? {});
     setFiles([]);
     draftLoadedRef.current = true;
   }, [item?.id]);
@@ -326,12 +334,42 @@ export default function RunExecution() {
           duration,
           elapsed,
           timerRunning,
+          stepResults,
           savedAt: new Date().toISOString(),
         }),
       );
     }, 300);
     return () => clearTimeout(timer);
-  }, [id, item?.id, actual, comment, duration, elapsed, timerRunning]);
+  }, [id, item?.id, actual, comment, duration, elapsed, timerRunning, stepResults]);
+  useEffect(() => {
+    if (!item) {
+      setHistory([]);
+      return;
+    }
+    let active = true;
+    api<RunCase["results"]>(`/test-runs/${id}/cases/${item.id}/history`)
+      .then((items) => {
+        if (!active) return;
+        setHistory(items);
+        const hasDraft = localStorage.getItem(
+          `quality-hub:test-run:${id}:draft:${item.id}`,
+        );
+        if (!hasDraft) {
+          setStepResults(
+            Object.fromEntries(
+              (items[0]?.stepResults ?? []).map((step) => [
+                step.stepId,
+                { status: step.status, comment: step.comment ?? "" },
+              ]),
+            ),
+          );
+        }
+      })
+      .catch((reason) => active && setError(reason.message));
+    return () => {
+      active = false;
+    };
+  }, [id, item?.id]);
   useEffect(() => {
     const timer = setInterval(() => {
       if (timerRunning) setElapsed((value) => value + 1);
@@ -357,6 +395,9 @@ export default function RunExecution() {
           actualResult: actual,
           comment,
           durationSeconds: seconds,
+          stepResults: Object.entries(stepResults)
+            .filter(([, result]) => result.status)
+            .map(([stepId, result]) => ({ stepId, ...result })),
         }),
       });
       if (nextStatus === "FAILED" && files.length) {
@@ -551,7 +592,7 @@ export default function RunExecution() {
                       <div key={section} className="mt-5">
                         <h3>{sectionNames[section]}</h3>
                         <div className="border border-[var(--line)] rounded-xl overflow-hidden">
-                          <div className="hidden md:grid grid-cols-[44px_1fr_1fr] bg-slate-50 text-xs text-muted font-semibold">
+                          <div className="hidden md:grid grid-cols-[44px_1fr_1fr_120px] bg-slate-50 text-xs text-muted font-semibold">
                             <span className="p-3 text-center">#</span>
                             <span className="p-3 border-l border-[var(--line)]">
                               Действие
@@ -559,13 +600,16 @@ export default function RunExecution() {
                             <span className="p-3 border-l border-[var(--line)]">
                               Ожидаемый результат
                             </span>
+                            <span className="p-3 border-l border-[var(--line)] text-center">
+                              Результат шага
+                            </span>
                           </div>
                           {item.testCase.version?.steps
                             .filter((step) => step.section === section)
                             .map((step, index) => (
                               <div
                                 key={step.id}
-                                className="grid md:grid-cols-[44px_1fr_1fr] border-t border-[var(--line)] first:border-t-0 md:first:border-t"
+                                className="grid md:grid-cols-[44px_1fr_1fr_120px] border-t border-[var(--line)] first:border-t-0 md:first:border-t"
                               >
                                 <b className="p-3 text-center text-brand bg-slate-50/70">
                                   {index + 1}
@@ -581,6 +625,58 @@ export default function RunExecution() {
                                     Ожидаемый результат
                                   </span>
                                   <p className="m-0">{step.expectedResult}</p>
+                                </div>
+                                <div className="p-2 md:border-l border-[var(--line)] flex flex-col justify-center gap-1.5">
+                                  <div className="grid grid-cols-2 gap-1">
+                                    <button
+                                      type="button"
+                                      title="Шаг пройден"
+                                      onClick={() =>
+                                        setStepResults((current) => ({
+                                          ...current,
+                                          [step.id]: {
+                                            status: "PASSED",
+                                            comment: current[step.id]?.comment ?? "",
+                                          },
+                                        }))
+                                      }
+                                      className={`border-0 rounded-lg py-1.5 cursor-pointer font-bold ${stepResults[step.id]?.status === "PASSED" ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700"}`}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Шаг провален"
+                                      onClick={() =>
+                                        setStepResults((current) => ({
+                                          ...current,
+                                          [step.id]: {
+                                            status: "FAILED",
+                                            comment: current[step.id]?.comment ?? "",
+                                          },
+                                        }))
+                                      }
+                                      className={`border-0 rounded-lg py-1.5 cursor-pointer font-bold ${stepResults[step.id]?.status === "FAILED" ? "bg-rose-500 text-white" : "bg-rose-50 text-rose-700"}`}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                  {stepResults[step.id]?.status === "FAILED" && (
+                                    <input
+                                      className="field !p-1.5 text-[10px]"
+                                      placeholder="Комментарий"
+                                      value={stepResults[step.id]?.comment ?? ""}
+                                      onChange={(event) =>
+                                        setStepResults((current) => ({
+                                          ...current,
+                                          [step.id]: {
+                                            status: "FAILED",
+                                            comment: event.target.value,
+                                          },
+                                        }))
+                                      }
+                                    />
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -784,20 +880,36 @@ export default function RunExecution() {
                   </>
                 )}
 
-                {item.results[0] && (
-                  <div className="mt-5 pt-4 border-t border-[var(--line)] text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted">Последний результат</span>
-                      <b>
-                        {formatDuration(item.results[0].durationSeconds ?? 0)}
-                      </b>
+                {history.length > 0 && (
+                  <details className="mt-5 pt-4 border-t border-[var(--line)] text-sm">
+                    <summary className="font-semibold cursor-pointer">
+                      История выполнений · {history.length}
+                    </summary>
+                    <div className="mt-3 max-h-52 overflow-y-auto space-y-2 pr-1">
+                      {history.map((result, index) => (
+                        <div
+                          key={result.id ?? `${result.createdAt}-${index}`}
+                          className="rounded-xl bg-slate-50 border border-[var(--line)] p-3"
+                        >
+                          <div className="flex justify-between gap-2">
+                            <b style={{ color: statuses.find(([value]) => value === result.status)?.[2] }}>
+                              {statusNames[result.status] ?? result.status}
+                            </b>
+                            <span className="font-mono">
+                              {formatDuration(result.durationSeconds ?? 0)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted my-1">
+                            {new Date(result.createdAt).toLocaleString("ru-RU")}
+                            {result.stepResults?.length
+                              ? ` · отмечено шагов: ${result.stepResults.length}`
+                              : ""}
+                          </p>
+                          {result.comment && <p className="m-0 text-xs">{result.comment}</p>}
+                        </div>
+                      ))}
                     </div>
-                    <span className="text-xs text-muted">
-                      {new Date(item.results[0].createdAt).toLocaleString(
-                        "ru-RU",
-                      )}
-                    </span>
-                  </div>
+                  </details>
                 )}
                 {item.attachments.length > 0 && (
                   <div className="mt-4">

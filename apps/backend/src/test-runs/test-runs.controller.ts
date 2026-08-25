@@ -26,6 +26,7 @@ export class TestRunsController {
   }
   @Get(':id/overview') overview(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.overview(req.user.organizationId, id); }
   @Get(':id/cases') cases(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Query() query: TestRunCaseQueryDto) { return this.service.cases(req.user.organizationId, id, query); }
+  @Get(':id/cases/:runCaseId/history') history(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.history(req.user.organizationId, id, runCaseId); }
   @Get(':id') detail(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(req.user.organizationId, id); }
   @Post() @Roles(...managers) create(@Req() req: AuthRequest, @Body() dto: CreateTestRunDto) { return this.service.create(req.user.organizationId, req.user.sub, dto); }
   @Post(':id/cases/:runCaseId/results') @Roles(...executors) result(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: SaveTestResultDto) { return this.service.saveResult(req.user.organizationId, id, runCaseId, req.user.sub, dto); }

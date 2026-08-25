@@ -22,7 +22,7 @@ describe('TestRunsService', () => {
     expect((prisma as any).attachment.findMany).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({organizationId:'org',entityId:{in:['rc']}})}));
   });
   it('saves a result without rebuilding all case details', async () => {
-    const prisma={testRunCase:{findFirst:jest.fn().mockResolvedValue({id:'rc'}),update:jest.fn(),findMany:jest.fn().mockResolvedValue([{status:RunStatus.PASSED},{status:RunStatus.NOT_RUN}])},testResult:{create:jest.fn()},testRun:{update:jest.fn()},$transaction:jest.fn().mockResolvedValue([])} as never;
+    const prisma={testRunCase:{findFirst:jest.fn().mockResolvedValue({id:'rc',testCase:{versions:[{steps:[]}]}}),update:jest.fn(),findMany:jest.fn().mockResolvedValue([{status:RunStatus.PASSED},{status:RunStatus.NOT_RUN}])},testResult:{create:jest.fn()},testRun:{update:jest.fn()},$transaction:jest.fn().mockResolvedValue([])} as never;
     const result=await new TestRunsService(prisma).saveResultFast('org','run','rc','user',{status:RunStatus.PASSED,durationSeconds:5});
     expect(result.summary.progress).toBe(50);
     expect((prisma as any).testRun.update).not.toHaveBeenCalled();
