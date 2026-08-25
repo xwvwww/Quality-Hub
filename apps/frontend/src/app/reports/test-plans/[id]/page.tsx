@@ -212,15 +212,15 @@ export default function PlanReport() {
                 </summary>
                 <div className="p-5 border-t border-[var(--line)]">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-5">
-                    <div className="rounded-xl bg-violet-50 text-violet-800 px-4 py-3">
+                    <div className="rounded-full bg-violet-50 text-violet-800 px-4 py-2.5 flex items-center justify-between gap-3">
                       <span className="text-muted">Тип</span>
                       <b className="block">{c.type}</b>
                     </div>
-                    <div className="rounded-xl bg-indigo-50 text-indigo-800 px-4 py-3">
+                    <div className="rounded-full bg-indigo-50 text-indigo-800 px-4 py-2.5 flex items-center justify-between gap-3">
                       <span className="text-muted">Приоритет</span>
                       <b className="block">{c.priority}</b>
                     </div>
-                    <div className="rounded-xl bg-blue-50 text-blue-800 px-4 py-3">
+                    <div className="rounded-full bg-blue-50 text-blue-800 px-4 py-2.5 flex items-center justify-between gap-3">
                       <span className="text-muted">Исполнитель</span>
                       <b className="block">
                         {c.executor
@@ -228,7 +228,7 @@ export default function PlanReport() {
                           : "—"}
                       </b>
                     </div>
-                    <div className="rounded-xl bg-emerald-50 text-emerald-800 px-4 py-3">
+                    <div className="rounded-full bg-emerald-50 text-emerald-800 px-4 py-2.5 flex items-center justify-between gap-3">
                       <span className="text-muted">Выполнен</span>
                       <b className="block">
                         {c.executedAt

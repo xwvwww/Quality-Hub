@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
-  Bug,
   CheckCircle2,
   Clock3,
   Gauge,
@@ -14,6 +13,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { api } from "@/lib/auth";
 import { formatDuration } from "@/lib/duration";
+import { QualityTrendChart } from "@/components/quality-trend-chart";
 type Project = { id: string; code: string; name: string };
 type Plan = {
   id: string;
@@ -132,13 +132,6 @@ export default function Analytics() {
           `${data.metrics.failed} провалено`,
           "text-violet-600",
         ],
-        [
-          Bug,
-          "Открытые дефекты",
-          data.metrics.openDefects,
-          `${data.metrics.defects} всего`,
-          "text-rose-600",
-        ],
       ]
     : [];
   return (
@@ -199,7 +192,7 @@ export default function Analytics() {
         ) : (
           data && (
             <>
-              <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+              <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {cards.map(([Icon, label, value, hint, color]: any) => (
                   <article className="card p-5" key={label}>
                     <div className="flex justify-between">
@@ -228,7 +221,8 @@ export default function Analytics() {
                       <TrendingDown className="text-rose-500" />
                     )}
                   </div>
-                  <div className="grid grid-cols-7 md:grid-cols-10 gap-2 mt-6 max-h-72 overflow-y-auto pr-1">
+                  <QualityTrendChart days={data.daily} />
+                  <div className="hidden">
                     {data.daily.map((d) => (
                       <div
                         className="aspect-square p-1 rounded-lg border border-[var(--line)] bg-slate-50 shadow-inner"

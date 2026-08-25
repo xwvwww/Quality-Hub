@@ -68,6 +68,8 @@ export class ReportDocumentBuilder {
 
   async pdf(snapshot: ReportSnapshot): Promise<Buffer> {
     const m = snapshot.metrics;
+    const statusKeys = Object.keys(statusLabels);
+    const statusTotal = Math.max(1, statusKeys.reduce((sum, key) => sum + Number(m[key as keyof typeof m] ?? 0), 0));
     const metric = (label: string, value: string, hint: string): Content => ({
       table: {
         widths: ["*"],
@@ -375,7 +377,7 @@ export class ReportDocumentBuilder {
       ];
       const card = {
         table: {
-          dontBreakRows: true,
+          dontBreakRows: !attachments.length,
           widths: ["*"],
           body: [
             [{ stack: body, fillColor: "#ffffff", margin: [14, 13, 14, 13] }],
@@ -491,11 +493,19 @@ export class ReportDocumentBuilder {
               duration(m.actualDuration),
               `Оценка ${duration(m.estimatedDuration)}`,
             ),
-            metric("Дефекты", String(m.defects), `${m.FAILED} провалено`),
           ],
           columnGap: 9,
           margin: [0, 0, 0, 12],
         },
+        {
+          canvas: statusKeys.reduce<{ type: "rect"; x: number; y: number; w: number; h: number; color: string; r: number }[]>((items, key) => {
+            const x = items.reduce((sum, item) => sum + item.w, 0);
+            const width = 720 * Number(m[key as keyof typeof m] ?? 0) / statusTotal;
+            if (width > 0) items.push({ type: "rect", x, y: 0, w: width, h: 10, color: statusColors[key], r: 5 });
+            return items;
+          }, []),
+          margin: [0, 0, 0, 12],
+        } as Content,
         {
           table: {
             widths: ["*", "*", "*", "*", "*", "*"],

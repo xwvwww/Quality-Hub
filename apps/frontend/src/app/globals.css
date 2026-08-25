@@ -330,3 +330,10 @@ input[type="checkbox"]:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
+
+.quality-trend-line {
+  stroke-dasharray: 1400;
+  stroke-dashoffset: 1400;
+  animation: quality-trend-draw 1.1s cubic-bezier(.2,.7,.2,1) forwards;
+}
+@keyframes quality-trend-draw { to { stroke-dashoffset: 0; } }

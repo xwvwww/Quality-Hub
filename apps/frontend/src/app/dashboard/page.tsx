@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   Activity,
   ArrowUpRight,
-  Bug,
   CheckCircle2,
   ClipboardCheck,
   FolderKanban,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { api, session } from "@/lib/auth";
+import { QualityTrendChart } from "@/components/quality-trend-chart";
 type Summary = {
   metrics: {
     projects: number;
@@ -31,7 +31,7 @@ type Summary = {
   }>;
 };
 type Analytics = {
-  metrics: { openDefects: number };
+  metrics: Record<string, number>;
   daily: Array<{
     date: string;
     total: number;
@@ -94,13 +94,6 @@ function WorkspaceDashboard() {
       "/analytics",
       "bg-emerald-50 text-emerald-600",
     ],
-    [
-      Bug,
-      "Открытые дефекты",
-      a?.metrics.openDefects ?? "—",
-      "/analytics",
-      "bg-rose-50 text-rose-600",
-    ],
   ] as const;
   return (
     <AppShell>
@@ -124,7 +117,7 @@ function WorkspaceDashboard() {
         {error && (
           <p className="p-3 bg-red-50 text-red-700 rounded-xl">{error}</p>
         )}
-        <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {cards.map(([Icon, label, value, href, tone]) => (
             <Link
               href={href}
@@ -160,7 +153,8 @@ function WorkspaceDashboard() {
               </div>
               <Activity className="text-brand" />
             </div>
-            <div className="grid grid-cols-7 gap-3 mt-6">
+            <QualityTrendChart days={days} />
+            <div className="hidden">
               {days.map((d) => (
                 <div
                   className="aspect-[1.35] p-1.5 rounded-xl border border-[var(--line)] bg-slate-50 shadow-inner"
