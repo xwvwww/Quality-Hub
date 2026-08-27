@@ -139,6 +139,7 @@ model Organization {
   tags      Tag[]
   auditLogs AuditLog[]
   generatedReports GeneratedReport[]
+  testCaseTemplates TestCaseTemplate[]
 }
 
 model OrganizationMember {
@@ -274,6 +275,27 @@ model TestStep {
   results        TestStepResult[]
 
   @@unique([versionId, section, position])
+}
+
+model TestCaseTemplate {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  createdById     String         @db.Uuid
+  name            String         @db.VarChar(150)
+  title           String         @db.VarChar(255)
+  description     String?
+  status          TestCaseStatus @default(READY)
+  priority        Priority       @default(MEDIUM)
+  type            TestType       @default(FUNCTIONAL)
+  durationSeconds Int            @default(0)
+  variables       Json           @default("[]")
+  steps           Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId, updatedAt])
 }
 
 model Tag {

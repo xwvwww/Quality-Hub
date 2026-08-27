@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Priority, Severity, TestCaseStatus, TestType } from '@prisma/client';
 
 export class CreateFolderDto {
@@ -115,4 +115,18 @@ export class BulkTestCasesDto {
   priority?: Priority;
   @IsOptional() @IsEnum(TestCaseStatus)
   status?: TestCaseStatus;
+}
+
+export class CreateTestCaseTemplateDto extends CreateTestCaseDto {
+  @IsString() @MinLength(2) @MaxLength(150)
+  name!: string;
+}
+
+export class InstantiateTestCaseTemplateDto {
+  @IsUUID()
+  projectId!: string;
+  @IsOptional() @IsUUID()
+  folderId?: string;
+  @IsOptional() @IsObject()
+  values: Record<string, string | number | boolean> = {};
 }

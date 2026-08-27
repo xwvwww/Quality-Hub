@@ -4,17 +4,32 @@ import { MembershipRole } from '@prisma/client';
 import { Request } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { Roles } from '../auth/roles.decorator';
-import { BulkTestCasesDto, CreateFolderDto, CreateTestCaseDto, SaveTestCaseDto, TestCaseQueryDto, UpdateFolderDto, UpdateTestCaseDto } from './test-cases.dto';
+import { BulkTestCasesDto, CreateFolderDto, CreateTestCaseDto, CreateTestCaseTemplateDto, InstantiateTestCaseTemplateDto, SaveTestCaseDto, TestCaseQueryDto, UpdateFolderDto, UpdateTestCaseDto } from './test-cases.dto';
 import { TestCasesService } from './test-cases.service';
 
 type AuthRequest = Request & { user: JwtUser };
-const editors = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER] as const;
+const editors = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER, MembershipRole.BUSINESS_ANALYST] as const;
 
 @ApiTags('test-case-repository')
 @ApiBearerAuth()
 @Controller()
 export class TestCasesController {
   constructor(private service: TestCasesService) {}
+
+  @Get('test-case-templates')
+  templates(@Req() req: AuthRequest) { return this.service.templates(req.user.organizationId); }
+
+  @Post('test-case-templates')
+  @Roles(...editors)
+  createTemplate(@Req() req: AuthRequest, @Body() dto: CreateTestCaseTemplateDto) { return this.service.createTemplate(req.user.organizationId, req.user.sub, dto); }
+
+  @Post('test-case-templates/:id/instantiate')
+  @Roles(...editors)
+  instantiateTemplate(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: InstantiateTestCaseTemplateDto) { return this.service.instantiateTemplate(req.user.organizationId, req.user.sub, req.user.role, id, dto); }
+
+  @Delete('test-case-templates/:id')
+  @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD)
+  deleteTemplate(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.deleteTemplate(req.user.organizationId, id); }
 
   @Get('projects/:projectId/test-case-folders')
   folders(@Req() req: AuthRequest, @Param('projectId', ParseUUIDPipe) projectId: string) { return this.service.folders(req.user.organizationId, projectId, req.user.sub, req.user.role); }

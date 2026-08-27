@@ -7,6 +7,7 @@ import {
 import {
   MembershipRole,
   Prisma,
+  Severity,
   TestCaseStatus,
   TestStepSection,
 } from "@prisma/client";
@@ -16,6 +17,8 @@ import {
   BulkTestCasesDto,
   CreateFolderDto,
   CreateTestCaseDto,
+  CreateTestCaseTemplateDto,
+  InstantiateTestCaseTemplateDto,
   SaveTestCaseDto,
   TestCaseQueryDto,
   UpdateFolderDto,
@@ -39,6 +42,30 @@ const caseSelect = {
 @Injectable()
 export class TestCasesService {
   constructor(private prisma: PrismaService) {}
+
+  async templates(organizationId:string){return this.prisma.testCaseTemplate.findMany({where:{organizationId},orderBy:[{updatedAt:'desc'},{name:'asc'}],select:{id:true,name:true,title:true,description:true,status:true,priority:true,type:true,durationSeconds:true,variables:true,steps:true,createdAt:true,updatedAt:true}});}
+
+  async createTemplate(organizationId:string,createdById:string,dto:CreateTestCaseTemplateDto){
+    const steps={preconditionSteps:dto.preconditionSteps,steps:dto.steps,postconditionSteps:dto.postconditionSteps};
+    const variables=this.templateVariables([dto.title,dto.description??'',...Object.values(steps).flatMap(items=>items.flatMap(step=>[step.action,step.expectedResult]))]);
+    try{return await this.prisma.testCaseTemplate.create({data:{organizationId,createdById,name:dto.name.trim(),title:dto.title.trim(),description:dto.description?.trim()||null,status:dto.status,priority:dto.priority,type:dto.type,durationSeconds:dto.durationSeconds,variables,steps:JSON.parse(JSON.stringify(steps)) as Prisma.InputJsonValue}});}
+    catch(error){if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==='P2002')throw new ConflictException('Шаблон с таким названием уже существует');throw error;}
+  }
+
+  async instantiateTemplate(organizationId:string,actorId:string,role:MembershipRole,id:string,dto:InstantiateTestCaseTemplateDto){
+    const template=await this.prisma.testCaseTemplate.findFirst({where:{id,organizationId}});if(!template)throw new NotFoundException('Шаблон не найден');
+    const variables=Array.isArray(template.variables)?template.variables.filter((item):item is string=>typeof item==='string'):[];
+    const missing=variables.filter(name=>dto.values[name]===undefined||String(dto.values[name]).trim()==='');if(missing.length)throw new BadRequestException(`Заполните параметры: ${missing.join(', ')}`);
+    const render=(text:string|null)=>this.renderTemplate(text??'',dto.values);
+    const raw=template.steps as unknown as {preconditionSteps?:Array<{action:string;expectedResult:string}>;steps?:Array<{action:string;expectedResult:string}>;postconditionSteps?:Array<{action:string;expectedResult:string}>};
+    const map=(items:Array<{action:string;expectedResult:string}>|undefined)=>(items??[]).map(step=>({action:render(step.action),expectedResult:render(step.expectedResult)}));
+    return this.create(organizationId,dto.projectId,actorId,role,{title:render(template.title),folderId:dto.folderId,description:render(template.description),status:template.status,priority:template.priority,type:template.type,durationSeconds:template.durationSeconds,preconditionSteps:map(raw.preconditionSteps),steps:map(raw.steps),postconditionSteps:map(raw.postconditionSteps),severity:Severity.MAJOR});
+  }
+
+  async deleteTemplate(organizationId:string,id:string){const result=await this.prisma.testCaseTemplate.deleteMany({where:{id,organizationId}});if(!result.count)throw new NotFoundException('Шаблон не найден');return{success:true};}
+
+  private templateVariables(values:string[]){const names=new Set<string>();for(const value of values)for(const match of value.matchAll(/\{\{\s*([a-zA-Z][a-zA-Z0-9_.-]{0,63})\s*\}\}/g))names.add(match[1]);return[...names].sort();}
+  private renderTemplate(value:string,values:Record<string,string|number|boolean>){return value.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_.-]{0,63})\s*\}\}/g,(_,name:string)=>String(values[name]??''));}
 
   async folders(
     organizationId: string,

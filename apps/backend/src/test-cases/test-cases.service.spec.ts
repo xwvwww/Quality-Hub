@@ -1,9 +1,23 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { TestCasesService } from './test-cases.service';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole, Priority, Severity, TestCaseStatus, TestType } from '@prisma/client';
 import { BulkAction } from './test-cases.dto';
 
 describe('TestCasesService', () => {
+  it('extracts unique variables when saving a reusable template', async () => {
+    const create=jest.fn().mockImplementation(({data})=>data);
+    const service=new TestCasesService({testCaseTemplate:{create}} as never);
+    const result=await service.createTemplate('org','user',{name:'Авторизация',title:'Вход {{login}}',description:'Среда {{environment}}',status:TestCaseStatus.READY,priority:Priority.MEDIUM,severity:Severity.MAJOR,type:TestType.FUNCTIONAL,durationSeconds:60,preconditionSteps:[],steps:[{action:'Ввести {{login}}',expectedResult:'Открыта {{environment}}'}],postconditionSteps:[]});
+    expect(result.variables).toEqual(['environment','login']);
+  });
+
+  it('renders template values before creating a test case', async () => {
+    const prisma={testCaseTemplate:{findFirst:jest.fn().mockResolvedValue({id:'template',title:'Вход {{login}}',description:'На {{environment}}',status:TestCaseStatus.READY,priority:Priority.HIGH,type:TestType.FUNCTIONAL,durationSeconds:30,variables:['environment','login'],steps:{preconditionSteps:[],steps:[{action:'Ввести {{login}}',expectedResult:'Открыт {{environment}}'}],postconditionSteps:[]}})}} as never;
+    const service=new TestCasesService(prisma);
+    jest.spyOn(service,'create').mockResolvedValue({id:'case'} as never);
+    await service.instantiateTemplate('org','user',MembershipRole.QA_ENGINEER,'template',{projectId:'project',values:{login:'alnur',environment:'stage'}});
+    expect(service.create).toHaveBeenCalledWith('org','project','user',MembershipRole.QA_ENGINEER,expect.objectContaining({title:'Вход alnur',description:'На stage',steps:[{action:'Ввести alnur',expectedResult:'Открыт stage'}]}));
+  });
   it('rejects repository access to a project from another tenant', async () => {
     const prisma = { project: { findFirst: jest.fn().mockResolvedValue(null) } } as any;
     const service = new TestCasesService(prisma);

@@ -11,6 +11,7 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
+  Library,
   Plus,
   Search,
   Trash2,
@@ -19,7 +20,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { api, session } from "@/lib/auth";
 import { StepSectionEditor } from "@/components/step-section-editor";
-import { parseDuration } from "@/lib/duration";
+import { formatDuration, parseDuration } from "@/lib/duration";
 
 type Project = { id: string; code: string; name: string; status: string };
 type FolderItem = {
@@ -44,6 +45,8 @@ type CasesResponse = {
   items: CaseItem[];
   meta: { page: number; pageSize: number; total: number; totalPages: number };
 };
+type TemplateStep={action:string;expectedResult:string};
+type TestCaseTemplate={id:string;name:string;title:string;description:string|null;status:string;priority:string;type:string;durationSeconds:number;variables:string[];steps:{preconditionSteps?:TemplateStep[];steps?:TemplateStep[];postconditionSteps?:TemplateStep[]}};
 const labels: Record<string, string> = {
   DRAFT: "Черновик",
   READY: "Готов",
@@ -95,6 +98,7 @@ export default function TestCasesPage() {
   };
   const [form, setForm] = useState(emptyForm);
   const [durationInput, setDurationInput] = useState("");
+  const [templates,setTemplates]=useState<TestCaseTemplate[]>([]),[templateId,setTemplateId]=useState(""),[templateValues,setTemplateValues]=useState<Record<string,string>>({}),[templateName,setTemplateName]=useState("");
   const [folderModal, setFolderModal] = useState(false);
   const [folderParentId, setFolderParentId] = useState<string | undefined>();
   const [folderName, setFolderName] = useState("");
@@ -117,6 +121,8 @@ export default function TestCasesPage() {
       })
       .catch((reason) => setError(reason.message));
   }, []);
+  const loadTemplates=useCallback(()=>api<TestCaseTemplate[]>('/test-case-templates').then(setTemplates).catch(reason=>setError(reason.message)),[]);
+  useEffect(()=>{if(canEdit)loadTemplates()},[canEdit,loadTemplates]);
   const loadFolders = useCallback(() => {
     if (!projectId) return;
     api<FolderItem[]>(`/projects/${projectId}/test-case-folders`)
@@ -232,7 +238,8 @@ export default function TestCasesPage() {
     }
     setSaving(true);
     try {
-      await api(`/projects/${projectId}/test-cases`, {
+      if(templateId){await api(`/test-case-templates/${templateId}/instantiate`,{method:'POST',body:JSON.stringify({projectId,folderId:formFolderId||undefined,values:templateValues})});}
+      else await api(`/projects/${projectId}/test-cases`, {
         method: "POST",
         body: JSON.stringify({
           ...form,
@@ -243,6 +250,7 @@ export default function TestCasesPage() {
       setModal(false);
       setForm(emptyForm);
       setDurationInput("");
+      setTemplateId("");setTemplateValues({});setTemplateName("");
       await loadCases();
       await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
@@ -251,6 +259,8 @@ export default function TestCasesPage() {
       setSaving(false);
     }
   }
+  function selectTemplate(id:string){setTemplateId(id);const template=templates.find(item=>item.id===id);if(!template){setTemplateValues({});return}setForm({title:template.title,description:template.description??'',status:template.status,priority:template.priority,type:template.type,preconditionSteps:template.steps.preconditionSteps??[],steps:template.steps.steps??[],postconditionSteps:template.steps.postconditionSteps??[]});setDurationInput(formatDuration(template.durationSeconds));setTemplateValues(Object.fromEntries(template.variables.map(name=>[name,''])));}
+  async function saveTemplate(){const name=templateName.trim();if(name.length<2){setError('Укажите название шаблона');return}const durationSeconds=parseDuration(durationInput);if(durationSeconds===null){setError('Проверьте продолжительность');return}setSaving(true);try{await api('/test-case-templates',{method:'POST',body:JSON.stringify({...form,name,durationSeconds})});setTemplateName('');await loadTemplates();}catch(reason){setError(reason instanceof Error?reason.message:'Не удалось сохранить шаблон')}finally{setSaving(false)}}
   async function clone(item: CaseItem) {
     try {
       await api(`/test-cases/${item.id}/clone`, { method: "POST" });
@@ -737,6 +747,12 @@ export default function TestCasesPage() {
                   <X />
                 </button>
               </div>
+              <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 mb-5">
+                <div className="flex items-center gap-2 mb-3"><Library size={18} className="text-brand"/><b>Библиотека шаблонов</b></div>
+                <div className="grid md:grid-cols-[1fr_1fr_auto] gap-2"><select className="field" value={templateId} onChange={event=>selectTemplate(event.target.value)}><option value="">Создать без шаблона</option>{templates.map(template=><option key={template.id} value={template.id}>{template.name}</option>)}</select><input className="field" value={templateName} onChange={event=>setTemplateName(event.target.value)} placeholder="Название нового шаблона"/><button type="button" className="btn-secondary" disabled={saving} onClick={saveTemplate}>Сохранить форму</button></div>
+                {templateId&&Object.keys(templateValues).length>0&&<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">{Object.keys(templateValues).map(name=><label key={name} className="text-xs font-semibold">{name}<input className="field mt-1 bg-white" required value={templateValues[name]} onChange={event=>setTemplateValues(current=>({...current,[name]:event.target.value}))} placeholder={`Значение для {{${name}}}`}/></label>)}</div>}
+                <p className="text-xs text-muted mb-0 mt-2">Переменные задаются в формате <code>{'{{login}}'}</code>. При создании они заменятся введёнными значениями.</p>
+              </section>
               <label className="block font-semibold text-sm mb-2">Папка</label>
               <select className="field mb-4" value={formFolderId} onChange={(event) => setFormFolderId(event.target.value)}>
                 <option value="">Без папки</option>
