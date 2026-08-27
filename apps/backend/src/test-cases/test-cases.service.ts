@@ -12,12 +12,14 @@ import {
   TestStepSection,
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import ExcelJS from "exceljs";
 import {
   BulkAction,
   BulkTestCasesDto,
   CreateFolderDto,
   CreateTestCaseDto,
   CreateTestCaseTemplateDto,
+  InstantiateTestCaseTemplateBulkDto,
   InstantiateTestCaseTemplateDto,
   SaveTestCaseDto,
   TestCaseQueryDto,
@@ -61,6 +63,20 @@ export class TestCasesService {
     const map=(items:Array<{action:string;expectedResult:string}>|undefined)=>(items??[]).map(step=>({action:render(step.action),expectedResult:render(step.expectedResult)}));
     return this.create(organizationId,dto.projectId,actorId,role,{title:render(template.title),folderId:dto.folderId,description:render(template.description),status:template.status,priority:template.priority,type:template.type,durationSeconds:template.durationSeconds,preconditionSteps:map(raw.preconditionSteps),steps:map(raw.steps),postconditionSteps:map(raw.postconditionSteps),severity:Severity.MAJOR});
   }
+
+  async instantiateTemplateBulk(organizationId:string,actorId:string,role:MembershipRole,id:string,dto:InstantiateTestCaseTemplateBulkDto){
+    const template=await this.prisma.testCaseTemplate.findFirst({where:{id,organizationId}});if(!template)throw new NotFoundException('Шаблон не найден');
+    const project=await this.project(organizationId,dto.projectId,actorId,role);if(dto.folderId)await this.folder(dto.projectId,dto.folderId);
+    const variables=Array.isArray(template.variables)?template.variables.filter((item):item is string=>typeof item==='string'):[];
+    const normalized=dto.datasets.map((dataset,index)=>{const missing=variables.filter(name=>dataset.values[name]===undefined||String(dataset.values[name]).trim()==='');if(missing.length)throw new BadRequestException(`Строка ${index+1}: заполните параметры ${missing.join(', ')}`);return dataset.values;});
+    const raw=template.steps as unknown as {preconditionSteps?:Array<{action:string;expectedResult:string}>;steps?:Array<{action:string;expectedResult:string}>;postconditionSteps?:Array<{action:string;expectedResult:string}>};
+    const created=await this.prisma.$transaction(async tx=>{const counter=await tx.project.update({where:{id:dto.projectId},data:{nextTestCaseNumber:{increment:normalized.length}},select:{nextTestCaseNumber:true}});const firstNumber=counter.nextTestCaseNumber-normalized.length;const output=[];for(const[datasetIndex,values]of normalized.entries()){const render=(text:string|null)=>this.renderTemplate(text??'',values);const section=(items:Array<{action:string;expectedResult:string}>|undefined)=>(items??[]).map(step=>({action:render(step.action),expectedResult:render(step.expectedResult)}));const item=await tx.testCase.create({data:{projectId:dto.projectId,folderId:dto.folderId??null,caseNumber:firstNumber+datasetIndex,title:render(template.title),status:template.status,priority:template.priority,severity:Severity.MAJOR,type:template.type,authorId:actorId,versions:{create:{version:1,description:render(template.description)||null,durationSeconds:template.durationSeconds,createdById:actorId,steps:{create:this.sectionSteps(section(raw.preconditionSteps),section(raw.steps),section(raw.postconditionSteps))}}}},select:caseSelect});output.push({...item,displayId:this.displayId(project.code,firstNumber+datasetIndex)});}return output;});
+    return{created:created.length,items:created};
+  }
+
+  async datasetsTemplate(organizationId:string,id:string){const template=await this.prisma.testCaseTemplate.findFirst({where:{id,organizationId}});if(!template)throw new NotFoundException('Шаблон не найден');const variables=Array.isArray(template.variables)?template.variables.filter((item):item is string=>typeof item==='string'):[];if(!variables.length)throw new BadRequestException('В шаблоне нет параметров');const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Параметры');sheet.addRow(variables);sheet.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};sheet.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF5B5CE2'}};sheet.columns=variables.map(name=>({header:name,key:name,width:Math.max(18,name.length+4)}));sheet.addRow(Object.fromEntries(variables.map(name=>[name,''])));sheet.views=[{state:'frozen',ySplit:1}];return Buffer.from(await workbook.xlsx.writeBuffer());}
+
+  async datasetsPreview(organizationId:string,id:string,file:{originalname:string;size:number;buffer:Buffer}){if(!file)throw new BadRequestException('Выберите XLSX файл');if(file.size>5*1024*1024)throw new BadRequestException('Размер XLSX не должен превышать 5 МБ');if(!file.originalname.toLowerCase().endsWith('.xlsx'))throw new BadRequestException('Разрешён только формат XLSX');const template=await this.prisma.testCaseTemplate.findFirst({where:{id,organizationId}});if(!template)throw new NotFoundException('Шаблон не найден');const variables=Array.isArray(template.variables)?template.variables.filter((item):item is string=>typeof item==='string'):[];const workbook=new ExcelJS.Workbook();try{await workbook.xlsx.load(file.buffer as never)}catch{throw new BadRequestException('Не удалось прочитать XLSX')};const sheet=workbook.worksheets[0];if(!sheet)throw new BadRequestException('В XLSX нет листов');const headers=sheet.getRow(1).values as unknown[];const indexes=new Map<string,number>();for(let column=1;column<headers.length;column++){const name=String(headers[column]??'').trim();if(name)indexes.set(name,column);}const missingHeaders=variables.filter(name=>!indexes.has(name));if(missingHeaders.length)throw new BadRequestException(`В XLSX отсутствуют колонки: ${missingHeaders.join(', ')}`);const datasets:Array<{values:Record<string,string>}>=[];sheet.eachRow((row,rowNumber)=>{if(rowNumber===1)return;const values=Object.fromEntries(variables.map(name=>[name,String(row.getCell(indexes.get(name)!).text??'').trim()]));if(Object.values(values).some(Boolean))datasets.push({values});});if(!datasets.length)throw new BadRequestException('В XLSX нет наборов данных');if(datasets.length>100)throw new BadRequestException('Допускается не более 100 наборов');for(const[index,dataset]of datasets.entries()){const missing=variables.filter(name=>!dataset.values[name]);if(missing.length)throw new BadRequestException(`Строка ${index+2}: заполните ${missing.join(', ')}`);}return{datasets,count:datasets.length};}
 
   async deleteTemplate(organizationId:string,id:string){const result=await this.prisma.testCaseTemplate.deleteMany({where:{id,organizationId}});if(!result.count)throw new NotFoundException('Шаблон не найден');return{success:true};}
 

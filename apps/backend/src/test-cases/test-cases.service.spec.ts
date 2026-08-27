@@ -18,6 +18,22 @@ describe('TestCasesService', () => {
     await service.instantiateTemplate('org','user',MembershipRole.QA_ENGINEER,'template',{projectId:'project',values:{login:'alnur',environment:'stage'}});
     expect(service.create).toHaveBeenCalledWith('org','project','user',MembershipRole.QA_ENGINEER,expect.objectContaining({title:'Вход alnur',description:'На stage',steps:[{action:'Ввести alnur',expectedResult:'Открыт stage'}]}));
   });
+
+  it('creates all parameter datasets in one transaction with consecutive numbers', async () => {
+    const template={id:'template',title:'Вход {{login}}',description:null,status:TestCaseStatus.READY,priority:Priority.MEDIUM,type:TestType.FUNCTIONAL,durationSeconds:10,variables:['login'],steps:{preconditionSteps:[],steps:[{action:'Ввести {{login}}',expectedResult:'Успешно'}],postconditionSteps:[]}};
+    const tx={project:{update:jest.fn().mockResolvedValue({nextTestCaseNumber:12})},testCase:{create:jest.fn().mockImplementation(({data})=>({id:`case-${data.caseNumber}`,caseNumber:data.caseNumber,title:data.title}))}};
+    const prisma={testCaseTemplate:{findFirst:jest.fn().mockResolvedValue(template)},project:{findFirst:jest.fn().mockResolvedValue({id:'project',code:'VCL'})},$transaction:jest.fn().mockImplementation((callback)=>callback(tx))} as never;
+    const result=await new TestCasesService(prisma).instantiateTemplateBulk('org','user',MembershipRole.QA_ENGINEER,'template',{projectId:'project',datasets:[{values:{login:'first'}},{values:{login:'second'}}]});
+    expect(result.created).toBe(2);
+    expect(result.items.map(item=>item.displayId)).toEqual(['VCL-TC-0010','VCL-TC-0011']);
+    expect(tx.testCase.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects the complete batch before writing when a dataset is incomplete', async () => {
+    const prisma={testCaseTemplate:{findFirst:jest.fn().mockResolvedValue({id:'template',variables:['login'],steps:{}})},project:{findFirst:jest.fn().mockResolvedValue({id:'project',code:'VCL'})},$transaction:jest.fn()} as never;
+    await expect(new TestCasesService(prisma).instantiateTemplateBulk('org','user',MembershipRole.QA_ENGINEER,'template',{projectId:'project',datasets:[{values:{login:'ok'}},{values:{login:''}}]})).rejects.toThrow('Строка 2');
+    expect((prisma as any).$transaction).not.toHaveBeenCalled();
+  });
   it('rejects repository access to a project from another tenant', async () => {
     const prisma = { project: { findFirst: jest.fn().mockResolvedValue(null) } } as any;
     const service = new TestCasesService(prisma);

@@ -130,3 +130,17 @@ export class InstantiateTestCaseTemplateDto {
   @IsOptional() @IsObject()
   values: Record<string, string | number | boolean> = {};
 }
+
+export class TemplateDatasetDto {
+  @IsObject()
+  values!: Record<string, string | number | boolean>;
+}
+
+export class InstantiateTestCaseTemplateBulkDto {
+  @IsUUID()
+  projectId!: string;
+  @IsOptional() @IsUUID()
+  folderId?: string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TemplateDatasetDto)
+  datasets!: TemplateDatasetDto[];
+}

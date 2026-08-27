@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   Copy,
+  Download,
   FileCheck2,
   FileSpreadsheet,
   Folder,
@@ -15,10 +16,11 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { api, session } from "@/lib/auth";
+import { api, apiBlob, apiUpload, session } from "@/lib/auth";
 import { StepSectionEditor } from "@/components/step-section-editor";
 import { formatDuration, parseDuration } from "@/lib/duration";
 
@@ -98,7 +100,7 @@ export default function TestCasesPage() {
   };
   const [form, setForm] = useState(emptyForm);
   const [durationInput, setDurationInput] = useState("");
-  const [templates,setTemplates]=useState<TestCaseTemplate[]>([]),[templateId,setTemplateId]=useState(""),[templateValues,setTemplateValues]=useState<Record<string,string>>({}),[templateName,setTemplateName]=useState("");
+  const [templates,setTemplates]=useState<TestCaseTemplate[]>([]),[templateId,setTemplateId]=useState(""),[templateDatasets,setTemplateDatasets]=useState<Array<Record<string,string>>>([{}]),[templateName,setTemplateName]=useState("");
   const [folderModal, setFolderModal] = useState(false);
   const [folderParentId, setFolderParentId] = useState<string | undefined>();
   const [folderName, setFolderName] = useState("");
@@ -238,7 +240,7 @@ export default function TestCasesPage() {
     }
     setSaving(true);
     try {
-      if(templateId){await api(`/test-case-templates/${templateId}/instantiate`,{method:'POST',body:JSON.stringify({projectId,folderId:formFolderId||undefined,values:templateValues})});}
+      if(templateId){await api(`/test-case-templates/${templateId}/instantiate-bulk`,{method:'POST',body:JSON.stringify({projectId,folderId:formFolderId||undefined,datasets:templateDatasets.map(values=>({values}))})});}
       else await api(`/projects/${projectId}/test-cases`, {
         method: "POST",
         body: JSON.stringify({
@@ -250,7 +252,7 @@ export default function TestCasesPage() {
       setModal(false);
       setForm(emptyForm);
       setDurationInput("");
-      setTemplateId("");setTemplateValues({});setTemplateName("");
+      setTemplateId("");setTemplateDatasets([{}]);setTemplateName("");
       await loadCases();
       await Promise.all([loadFolders(), loadProjectTotal()]);
     } catch (reason) {
@@ -259,7 +261,11 @@ export default function TestCasesPage() {
       setSaving(false);
     }
   }
-  function selectTemplate(id:string){setTemplateId(id);const template=templates.find(item=>item.id===id);if(!template){setTemplateValues({});return}setForm({title:template.title,description:template.description??'',status:template.status,priority:template.priority,type:template.type,preconditionSteps:template.steps.preconditionSteps??[],steps:template.steps.steps??[],postconditionSteps:template.steps.postconditionSteps??[]});setDurationInput(formatDuration(template.durationSeconds));setTemplateValues(Object.fromEntries(template.variables.map(name=>[name,''])));}
+  function selectTemplate(id:string){setTemplateId(id);const template=templates.find(item=>item.id===id);if(!template){setTemplateDatasets([{}]);return}setForm({title:template.title,description:template.description??'',status:template.status,priority:template.priority,type:template.type,preconditionSteps:template.steps.preconditionSteps??[],steps:template.steps.steps??[],postconditionSteps:template.steps.postconditionSteps??[]});setDurationInput(formatDuration(template.durationSeconds));setTemplateDatasets([Object.fromEntries(template.variables.map(name=>[name,'']))]);}
+  function addDataset(){if(templateDatasets.length>=100)return;const variables=templates.find(item=>item.id===templateId)?.variables??[];setTemplateDatasets(current=>[...current,Object.fromEntries(variables.map(name=>[name,'']))]);}
+  function renderPreview(value:string,dataset:Record<string,string>){return value.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_.-]{0,63})\s*\}\}/g,(_,name:string)=>dataset[name]||`{{${name}}}`)}
+  async function downloadDatasetsTemplate(){if(!templateId)return;try{const blob=await apiBlob(`/test-case-templates/${templateId}/datasets-template`),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='template-datasets.xlsx';anchor.click();URL.revokeObjectURL(url);}catch(reason){setError(reason instanceof Error?reason.message:'Не удалось скачать XLSX')}}
+  async function importDatasets(file?:File){if(!file||!templateId)return;setSaving(true);try{const body=new FormData();body.append('file',file);const result=await apiUpload<{datasets:Array<{values:Record<string,string>}>}>(`/test-case-templates/${templateId}/datasets-preview`,body);setTemplateDatasets(result.datasets.map(item=>item.values));}catch(reason){setError(reason instanceof Error?reason.message:'Не удалось прочитать XLSX')}finally{setSaving(false)}}
   async function saveTemplate(){const name=templateName.trim();if(name.length<2){setError('Укажите название шаблона');return}const durationSeconds=parseDuration(durationInput);if(durationSeconds===null){setError('Проверьте продолжительность');return}setSaving(true);try{await api('/test-case-templates',{method:'POST',body:JSON.stringify({...form,name,durationSeconds})});setTemplateName('');await loadTemplates();}catch(reason){setError(reason instanceof Error?reason.message:'Не удалось сохранить шаблон')}finally{setSaving(false)}}
   async function clone(item: CaseItem) {
     try {
@@ -750,7 +756,7 @@ export default function TestCasesPage() {
               <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 mb-5">
                 <div className="flex items-center gap-2 mb-3"><Library size={18} className="text-brand"/><b>Библиотека шаблонов</b></div>
                 <div className="grid md:grid-cols-[1fr_1fr_auto] gap-2"><select className="field" value={templateId} onChange={event=>selectTemplate(event.target.value)}><option value="">Создать без шаблона</option>{templates.map(template=><option key={template.id} value={template.id}>{template.name}</option>)}</select><input className="field" value={templateName} onChange={event=>setTemplateName(event.target.value)} placeholder="Название нового шаблона"/><button type="button" className="btn-secondary" disabled={saving} onClick={saveTemplate}>Сохранить форму</button></div>
-                {templateId&&Object.keys(templateValues).length>0&&<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">{Object.keys(templateValues).map(name=><label key={name} className="text-xs font-semibold">{name}<input className="field mt-1 bg-white" required value={templateValues[name]} onChange={event=>setTemplateValues(current=>({...current,[name]:event.target.value}))} placeholder={`Значение для {{${name}}}`}/></label>)}</div>}
+                {templateId&&<div className="mt-4 overflow-x-auto rounded-xl border border-indigo-100 bg-white"><div className="flex flex-wrap justify-between items-center gap-2 p-3 border-b border-indigo-100"><div><b>Наборы данных</b><span className="text-xs text-muted ml-2">Будет создано кейсов: {templateDatasets.length}</span></div><div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary py-2" onClick={downloadDatasetsTemplate}><Download size={15}/> Шаблон XLSX</button><label className="btn-secondary py-2 cursor-pointer"><Upload size={15}/> Загрузить XLSX<input type="file" accept=".xlsx" className="hidden" onChange={event=>{void importDatasets(event.target.files?.[0]);event.target.value=''}}/></label><button type="button" className="btn-secondary py-2" onClick={addDataset} disabled={templateDatasets.length>=100}><Plus size={15}/> Добавить строку</button></div></div><table className="w-full text-sm border-collapse"><thead><tr className="bg-slate-50"><th className="p-3 text-left w-12">#</th>{(templates.find(item=>item.id===templateId)?.variables??[]).map(name=><th className="p-3 text-left" key={name}>{name}</th>)}<th className="p-3 text-left">Предпросмотр</th><th className="w-12"/></tr></thead><tbody>{templateDatasets.map((dataset,rowIndex)=><tr className="border-t border-[var(--line)]" key={rowIndex}><td className="p-3 font-semibold text-brand">{rowIndex+1}</td>{Object.keys(dataset).map(name=><td className="p-2" key={name}><input className="field bg-white min-w-36" required value={dataset[name]} onChange={event=>setTemplateDatasets(current=>current.map((row,index)=>index===rowIndex?{...row,[name]:event.target.value}:row))}/></td>)}<td className="p-3 min-w-56"><b>{renderPreview(form.title,dataset)}</b></td><td className="p-2"><button type="button" className="icon-btn text-red-600" disabled={templateDatasets.length===1} onClick={()=>setTemplateDatasets(current=>current.filter((_,index)=>index!==rowIndex))}><Trash2 size={16}/></button></td></tr>)}</tbody></table></div>}
                 <p className="text-xs text-muted mb-0 mt-2">Переменные задаются в формате <code>{'{{login}}'}</code>. При создании они заменятся введёнными значениями.</p>
               </section>
               <label className="block font-semibold text-sm mb-2">Папка</label>

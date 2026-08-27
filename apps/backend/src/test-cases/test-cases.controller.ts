@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MembershipRole } from '@prisma/client';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { Roles } from '../auth/roles.decorator';
-import { BulkTestCasesDto, CreateFolderDto, CreateTestCaseDto, CreateTestCaseTemplateDto, InstantiateTestCaseTemplateDto, SaveTestCaseDto, TestCaseQueryDto, UpdateFolderDto, UpdateTestCaseDto } from './test-cases.dto';
+import { BulkTestCasesDto, CreateFolderDto, CreateTestCaseDto, CreateTestCaseTemplateDto, InstantiateTestCaseTemplateBulkDto, InstantiateTestCaseTemplateDto, SaveTestCaseDto, TestCaseQueryDto, UpdateFolderDto, UpdateTestCaseDto } from './test-cases.dto';
 import { TestCasesService } from './test-cases.service';
 
 type AuthRequest = Request & { user: JwtUser };
@@ -26,6 +27,18 @@ export class TestCasesController {
   @Post('test-case-templates/:id/instantiate')
   @Roles(...editors)
   instantiateTemplate(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: InstantiateTestCaseTemplateDto) { return this.service.instantiateTemplate(req.user.organizationId, req.user.sub, req.user.role, id, dto); }
+
+  @Post('test-case-templates/:id/instantiate-bulk')
+  @Roles(...editors)
+  instantiateTemplateBulk(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: InstantiateTestCaseTemplateBulkDto) { return this.service.instantiateTemplateBulk(req.user.organizationId, req.user.sub, req.user.role, id, dto); }
+
+  @Get('test-case-templates/:id/datasets-template')
+  async datasetsTemplate(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Res() response: Response) { const output=await this.service.datasetsTemplate(req.user.organizationId,id);response.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');response.setHeader('Content-Disposition','attachment; filename="template-datasets.xlsx"');response.send(output); }
+
+  @Post('test-case-templates/:id/datasets-preview')
+  @Roles(...editors)
+  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024}}))
+  datasetsPreview(@Req() req: AuthRequest,@Param('id',ParseUUIDPipe)id:string,@UploadedFile()file:{originalname:string;size:number;buffer:Buffer}){return this.service.datasetsPreview(req.user.organizationId,id,file);}
 
   @Delete('test-case-templates/:id')
   @Roles(MembershipRole.ADMIN, MembershipRole.QA_LEAD)
