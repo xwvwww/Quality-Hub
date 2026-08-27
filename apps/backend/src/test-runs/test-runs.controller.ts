@@ -6,7 +6,7 @@ import { Request, Response } from 'express';
 import { JwtUser } from '../auth/auth.types';
 import { Roles } from '../auth/roles.decorator';
 import { BufferedUpload, validateUploads } from '../security/upload-validation';
-import { AssignRunCaseDto, CreateTestRunDto, SaveTestResultDto, TestRunCaseQueryDto, TestRunQueryDto } from './test-runs.dto';
+import { AssignRunCaseDto, BulkAssignRunCasesDto, CreateTestRunDto, MyTaskQueryDto, RerunTestRunDto, SaveTestResultDto, TestRunCaseQueryDto, TestRunQueryDto } from './test-runs.dto';
 import { TestRunsService } from './test-runs.service';
 
 type AuthRequest = Request & { user: JwtUser };
@@ -17,6 +17,7 @@ const executors = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.
 export class TestRunsController {
   constructor(private service: TestRunsService) {}
   @Get() list(@Req() req: AuthRequest, @Query() query: TestRunQueryDto) { return this.service.list(req.user.organizationId, query); }
+  @Get('my-tasks') myTasks(@Req() req: AuthRequest, @Query() query: MyTaskQueryDto) { return this.service.myTasks(req.user.organizationId, req.user.sub, query); }
   @Get('attachments/:attachmentId') async attachment(@Req() req: AuthRequest, @Param('attachmentId', ParseUUIDPipe) id: string, @Res() res: Response) {
     const file = await this.service.attachment(req.user.organizationId, id);
     res.setHeader('Content-Type', file.mimeType);
@@ -46,6 +47,8 @@ export class TestRunsController {
   @Post(':id/cases/:runCaseId/lock') @Roles(...executors) lock(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.lock(req.user.organizationId, id, runCaseId, req.user.sub); }
   @Delete(':id/cases/:runCaseId/lock') @Roles(...executors) unlock(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string) { return this.service.unlock(req.user.organizationId, id, runCaseId, req.user.sub); }
   @Patch(':id/cases/:runCaseId/assignee') @Roles(...managers) assign(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Param('runCaseId', ParseUUIDPipe) runCaseId: string, @Body() dto: AssignRunCaseDto) { return this.service.assign(req.user.organizationId, id, runCaseId, dto); }
+  @Patch(':id/cases/bulk-assignee') @Roles(...managers) bulkAssign(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: BulkAssignRunCasesDto) { return this.service.bulkAssign(req.user.organizationId, id, dto); }
+  @Post(':id/rerun') @Roles(...managers) rerun(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RerunTestRunDto) { return this.service.rerun(req.user.organizationId, req.user.sub, id, dto); }
   @Post(':id/complete') @Roles(...managers) complete(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.complete(req.user.organizationId, id); }
   @Delete(':id') @Roles(...managers) remove(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.remove(req.user.organizationId, id); }
 }

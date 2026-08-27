@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   BarChart3,
   ClipboardCheck,
+  ListTodo,
   FileText,
   FolderKanban,
   Gauge,
@@ -43,6 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [ClipboardCheck, t.cases, "/test-cases"],
     [FileText, t.plans, "/test-plans"],
     [PlayCircle, t.runs, "/test-runs"],
+    [ListTodo, "Мои задачи", "/my-tasks"],
     [Plug, t.integrations, "/integrations"],
   ] as const;
   const workspaceNavigation = [
@@ -74,6 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       "/test-cases",
       "/test-plans",
       "/test-runs",
+      "/my-tasks",
       "/defects",
       "/requirements",
       "/reports",

@@ -34,6 +34,7 @@ type Attachment = {
 };
 type RunCase = {
   id: string;
+  assigneeId: string | null;
   status: string;
   position: number;
   testCase: {
@@ -184,6 +185,7 @@ export default function RunExecution() {
     [status, setStatus] = useState(""),
     [selected, setSelected] = useState(""),
     [positionRestored, setPositionRestored] = useState(false);
+  const [checked,setChecked]=useState<string[]>([]),[members,setMembers]=useState<Array<{user:{id:string;firstName:string;lastName:string;email:string}}>>([]),[assignee,setAssignee]=useState("");
   const [actual, setActual] = useState(""),
     [comment, setComment] = useState(""),
     [duration, setDuration] = useState(""),
@@ -210,6 +212,7 @@ export default function RunExecution() {
   const canExecute = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(
     session.get()?.user.role ?? "",
   );
+  const canManage=["ADMIN","QA_LEAD"].includes(session.get()?.user.role??"");
   const canEditCurrent = canExecute && caseLock?.acquired !== false;
   const loadOverview = useCallback(
     () => api<Overview>(`/test-runs/${id}/overview`).then(setRun),
@@ -238,6 +241,14 @@ export default function RunExecution() {
   }, [id, page, search, status]);
   useEffect(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const linkedPage = Number(params.get("page"));
+      const linkedCase = params.get("case");
+      if (linkedPage > 0 && linkedCase) {
+        setPage(linkedPage);
+        setSelected(linkedCase);
+        return;
+      }
       const saved = JSON.parse(localStorage.getItem(positionKey) ?? "null") as
         | { page?: number; selected?: string }
         | null;
@@ -252,6 +263,7 @@ export default function RunExecution() {
   useEffect(() => {
     loadOverview().catch((e) => setError(e.message));
   }, [loadOverview]);
+  useEffect(()=>{if(canManage)api<{members:Array<{user:{id:string;firstName:string;lastName:string;email:string}}>}>('/profile/organization').then(value=>setMembers(value.members)).catch(()=>undefined)},[canManage]);
   useEffect(() => {
     if (!positionRestored) return;
     const timer = setTimeout(
@@ -296,6 +308,8 @@ export default function RunExecution() {
       setPage((value) => value - 1);
     }
   }
+  async function bulkAssign(){if(!checked.length)return;setSaving(true);try{await api(`/test-runs/${id}/cases/bulk-assignee`,{method:'PATCH',body:JSON.stringify({ids:checked,assigneeId:assignee||undefined})});setChecked([]);await loadCases();}catch(e){setError(e instanceof Error?e.message:'Не удалось назначить кейсы')}finally{setSaving(false)}}
+  async function rerunProblems(){setSaving(true);try{const created=await api<{id:string}>(`/test-runs/${id}/rerun`,{method:'POST',body:JSON.stringify({statuses:['FAILED','BLOCKED','RETEST']})});router.push(`/test-runs/${created.id}`);}catch(e){setError(e instanceof Error?e.message:'Не удалось создать повторный запуск')}finally{setSaving(false)}}
   useEffect(() => {
     draftLoadedRef.current = false;
     const latest = item?.results[0];
@@ -519,7 +533,9 @@ export default function RunExecution() {
               <h1 className="text-2xl m-0">{run.name}</h1>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right flex items-center gap-3">
+            {canManage&&run.summary.FAILED+run.summary.BLOCKED+run.summary.RETEST>0&&<button className="btn-secondary" disabled={saving} onClick={rerunProblems}><RotateCcw size={16}/> Повторить проблемные</button>}
+            <div>
             <b>
               {run.summary.executed}/{run.summary.total} ·{" "}
               {run.summary.progress}%
@@ -529,6 +545,7 @@ export default function RunExecution() {
                 className="h-full bg-brand rounded"
                 style={{ width: `${run.summary.progress}%` }}
               />
+            </div>
             </div>
           </div>
         </div>
@@ -563,10 +580,11 @@ export default function RunExecution() {
                 </option>
               ))}
             </select>
+            {canManage&&<div className="grid grid-cols-[1fr_auto] gap-2 mb-2"><select className="field text-sm" value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">Без исполнителя</option>{members.map(member=><option key={member.user.id} value={member.user.id}>{`${member.user.firstName} ${member.user.lastName}`.trim()||member.user.email}</option>)}</select><button className="btn-secondary px-3" disabled={!checked.length||saving} onClick={bulkAssign}>Назначить {checked.length||''}</button></div>}
             <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
               {data.items.map((entry) => (
-                <button
-                  key={entry.id}
+                <div key={entry.id} className="flex items-start gap-1">
+                {canManage&&<input type="checkbox" className="mt-4 accent-indigo-600" checked={checked.includes(entry.id)} onChange={e=>setChecked(current=>e.target.checked?[...current,entry.id]:current.filter(id=>id!==entry.id))}/>}<button
                   ref={entry.id === selected ? activeCaseRef : undefined}
                   onClick={() => setSelected(entry.id)}
                   className={`w-full border-0 text-left p-3 rounded-lg mb-1 cursor-pointer [content-visibility:auto] [contain-intrinsic-size:72px] ${entry.id === selected ? "bg-indigo-50 text-brand" : "bg-transparent hover:bg-slate-50"}`}
@@ -581,6 +599,7 @@ export default function RunExecution() {
                     {entry.testCase.title}
                   </div>
                 </button>
+                </div>
               ))}
               {!data.items.length && (
                 <p className="text-center text-muted py-8">Кейсы не найдены</p>

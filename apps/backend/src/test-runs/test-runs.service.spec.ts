@@ -31,4 +31,17 @@ describe('TestRunsService', () => {
     const prisma={testRunCase:{findFirst:jest.fn().mockResolvedValue({lockedById:'other-user',lockExpiresAt:new Date(Date.now()+60_000)})}} as never;
     await expect(new TestRunsService(prisma).assertCanEdit('org','run','case','current-user')).rejects.toThrow('другой пользователь');
   });
+  it('bulk assigns only cases belonging to the selected run', async () => {
+    const prisma={testRun:{findFirst:jest.fn().mockResolvedValue({id:'run'})},organizationMember:{findUnique:jest.fn().mockResolvedValue({userId:'user'})},testRunCase:{count:jest.fn().mockResolvedValue(2),updateMany:jest.fn().mockResolvedValue({count:2})}} as never;
+    const result=await new TestRunsService(prisma).bulkAssign('org','run',{ids:['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222'],assigneeId:'33333333-3333-4333-8333-333333333333'});
+    expect(result.updated).toBe(2);
+    expect((prisma as any).testRunCase.updateMany).toHaveBeenCalledWith(expect.objectContaining({data:{assigneeId:'33333333-3333-4333-8333-333333333333'}}));
+  });
+  it('creates a rerun from problematic cases and preserves assignees', async () => {
+    const source={id:'run',projectId:'project',testPlanId:'plan',name:'Regression',build:'42',environment:'stage',cases:[{testCaseId:'a',assigneeId:'user-a',status:RunStatus.PASSED},{testCaseId:'b',assigneeId:'user-b',status:RunStatus.FAILED},{testCaseId:'c',assigneeId:null,status:RunStatus.BLOCKED}]};
+    const create=jest.fn().mockResolvedValue({id:'rerun'});
+    const prisma={testRun:{findFirst:jest.fn().mockResolvedValue(source),create}} as never;
+    await new TestRunsService(prisma).rerun('org','lead','run',{});
+    expect(create.mock.calls[0][0].data.cases.create).toEqual([{testCaseId:'b',assigneeId:'user-b',position:0},{testCaseId:'c',assigneeId:null,position:1}]);
+  });
 });
