@@ -103,6 +103,10 @@ enum ReportFormat {
   JSON
 }
 
+enum PerformanceSource {
+  JMETER
+}
+
 model User {
   id            String               @id @default(uuid()) @db.Uuid
   email         String               @unique @db.VarChar(255)
@@ -125,6 +129,7 @@ model User {
   notifications Notification[]
   auditLogs     AuditLog[]
   requestedReports GeneratedReport[]
+  performanceRuns PerformanceRun[]
 }
 
 model Organization {
@@ -140,6 +145,7 @@ model Organization {
   auditLogs AuditLog[]
   generatedReports GeneratedReport[]
   testCaseTemplates TestCaseTemplate[]
+  performanceRuns PerformanceRun[]
 }
 
 model OrganizationMember {
@@ -191,6 +197,7 @@ model Project {
   defects            Defect[]
   requirements       Requirement[]
   environments       Environment[]
+  performanceRuns    PerformanceRun[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -389,6 +396,63 @@ model TestRun {
   testPlan    TestPlan?     @relation(fields: [testPlanId], references: [id])
   cases       TestRunCase[]
   defects     Defect[]
+  performanceRuns PerformanceRun[]
+}
+
+model PerformanceRun {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  projectId      String            @db.Uuid
+  testRunId      String?           @db.Uuid
+  createdById    String            @db.Uuid
+  source         PerformanceSource @default(JMETER)
+  name           String            @db.VarChar(255)
+  environment    String?           @db.VarChar(100)
+  build          String?           @db.VarChar(100)
+  sampleCount    Int
+  errorCount     Int
+  durationMs     Int
+  throughput     Float
+  averageMs      Float
+  minMs          Int
+  maxMs          Int
+  p50Ms          Int
+  p90Ms          Int
+  p95Ms          Int
+  p99Ms          Int
+  receivedBytes  BigInt            @default(0)
+  sla            Json
+  slaPassed      Boolean
+  createdAt      DateTime          @default(now())
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testRun        TestRun?          @relation(fields: [testRunId], references: [id], onDelete: SetNull)
+  createdBy      User              @relation(fields: [createdById], references: [id])
+  labels         PerformanceMetric[]
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([testRunId])
+}
+
+model PerformanceMetric {
+  id            String         @id @default(uuid()) @db.Uuid
+  performanceRunId String       @db.Uuid
+  label         String         @db.VarChar(500)
+  sampleCount   Int
+  errorCount    Int
+  throughput    Float
+  averageMs     Float
+  minMs         Int
+  maxMs         Int
+  p50Ms         Int
+  p90Ms         Int
+  p95Ms         Int
+  p99Ms         Int
+  receivedBytes BigInt         @default(0)
+  run           PerformanceRun @relation(fields: [performanceRunId], references: [id], onDelete: Cascade)
+
+  @@index([performanceRunId, p95Ms])
 }
 
 model TestRunCase {
