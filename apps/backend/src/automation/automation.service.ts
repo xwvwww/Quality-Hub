@@ -23,9 +23,7 @@ export class AutomationService {
     return { success: true };
   }
   async ingest(rawKey: string | undefined, dto: IngestAutomationDto) {
-    if (!rawKey) throw new UnauthorizedException('Передайте API-ключ в заголовке X-API-Key');
-    const key = await this.prisma.automationApiKey.findUnique({ where: { keyHash: this.hash(rawKey) } });
-    if (!key || key.revokedAt) throw new UnauthorizedException('API-ключ недействителен');
+    const key = await this.authenticateKey(rawKey);
     if (!dto.results.length || dto.results.length > 1000) throw new BadRequestException('Допустимо от 1 до 1000 результатов за запрос');
     const created = await this.prisma.$transaction(async tx => {
       await tx.automationApiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } });
@@ -34,5 +32,12 @@ export class AutomationService {
     return { accepted: created.length, projectId: key.projectId };
   }
   async results(organizationId: string, projectId?: string) { return this.prisma.automationResult.findMany({ where: { organizationId, ...(projectId ? { projectId } : {}) }, orderBy: { createdAt: 'desc' }, take: 200 }); }
+  async authenticateKey(rawKey: string | undefined) {
+    if (!rawKey) throw new UnauthorizedException('Передайте API-ключ в заголовке X-API-Key');
+    const key = await this.prisma.automationApiKey.findUnique({ where: { keyHash: this.hash(rawKey) } });
+    if (!key || key.revokedAt) throw new UnauthorizedException('API-ключ недействителен');
+    return key;
+  }
+  async markKeyUsed(id: string) { await this.prisma.automationApiKey.update({ where: { id }, data: { lastUsedAt: new Date() } }); }
   private hash(value: string) { return createHash('sha256').update(value).digest('hex'); }
 }

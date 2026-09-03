@@ -1,15 +1,27 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, HttpStatus, Param, ParseUUIDPipe, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MembershipRole } from '@prisma/client';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { AutomationService } from '../automation/automation.service';
 import { JwtUser } from '../auth/auth.types';
+import { Public } from '../auth/public.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { PerformanceService } from './performance.service';
 type AuthRequest = Request & { user: JwtUser };
 const importers = [MembershipRole.ADMIN, MembershipRole.QA_LEAD, MembershipRole.QA_ENGINEER, MembershipRole.BUSINESS_ANALYST] as const;
 @Controller('performance')
 export class PerformanceController {
-  constructor(private readonly service: PerformanceService) {}
+  constructor(private readonly service: PerformanceService, private readonly automation: AutomationService) {}
+  @Public()
+  @Post('jmeter/ci')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  async ci(@Headers('x-api-key') rawKey: string | undefined, @UploadedFile() file: any, @Body() body: any, @Res({ passthrough: true }) response: Response) {
+    const key = await this.automation.authenticateKey(rawKey);
+    const result = await this.service.create(key.organizationId, key.createdById, { projectId: key.projectId, name: body.name || 'JMeter CI', environment: body.environment, build: body.build, sla: this.parseSla(body) }, file);
+    await this.automation.markKeyUsed(key.id);
+    if (!result.slaPassed) response.status(HttpStatus.UNPROCESSABLE_ENTITY);
+    return { ...result, pipelineStatus: result.slaPassed ? 'passed' : 'failed', exitCode: result.slaPassed ? 0 : 1 };
+  }
   @Post('jmeter/preview') @Roles(...importers)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
   preview(@UploadedFile() file: any, @Body() body: any) { return this.service.preview(file, this.parseSla(body)); }
