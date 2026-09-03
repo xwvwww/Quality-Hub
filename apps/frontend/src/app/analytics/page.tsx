@@ -9,6 +9,10 @@ import {
   PlayCircle,
   TrendingDown,
   TrendingUp,
+  ShieldCheck,
+  Sparkles,
+  TimerReset,
+  Zap,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { api } from "@/lib/auth";
@@ -34,6 +38,10 @@ type Data = {
     runs: number;
     defects: number;
     openDefects: number;
+    coverage: number;
+    stability: number;
+    readinessScore: number;
+    readiness: "READY" | "AT_RISK" | "NOT_READY";
   };
   daily: Array<{
     date: string;
@@ -66,13 +74,21 @@ type Data = {
     failed: number;
     total: number;
   }>;
+  flakyCases: CaseHealth[];
+  regressions: CaseHealth[];
+  fixedCases: CaseHealth[];
+  slowCases: CaseHealth[];
+  staleCases: CaseHealth[];
+  forecasts: Array<{id:string;name:string;projectCode:string;completed:number;total:number;remaining:number;averageSeconds:number;estimatedSeconds:number}>;
 };
+type CaseHealth={id:string;displayId:string;title:string;total:number;passed:number;failed:number;blocked:number;transitions:number;stability:number;averageDuration:number;daysSinceExecution:number;trend:string};
 export default function Analytics() {
   const [projects, setProjects] = useState<Project[]>([]),
     [plans, setPlans] = useState<Plan[]>([]),
     [project, setProject] = useState(""),
     [plan, setPlan] = useState(""),
     [days, setDays] = useState("30"),
+    [environment,setEnvironment]=useState(""),
     [data, setData] = useState<Data | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
@@ -91,12 +107,13 @@ export default function Analytics() {
     const q = new URLSearchParams({ days });
     if (project) q.set("projectId", project);
     if (plan) q.set("testPlanId", plan);
+    if(environment)q.set("environment",environment);
     setLoading(true);
     api<Data>(`/analytics?${q}`)
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [project, plan, days]);
+  }, [project, plan, days, environment]);
   const shownPlans = useMemo(
     () => (project ? plans.filter((p) => p.projectId === project) : plans),
     [plans, project],
@@ -159,7 +176,7 @@ export default function Analytics() {
             </p>
             <h1 className="text-3xl font-medium m-0 mt-1">Аналитика</h1>
           </div>
-          <div className="grid sm:grid-cols-3 gap-3 xl:min-w-[700px]">
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:min-w-[820px]">
             <select
               className="field"
               value={project}
@@ -175,6 +192,7 @@ export default function Analytics() {
                 </option>
               ))}
             </select>
+            <input className="field" value={environment} onChange={e=>setEnvironment(e.target.value)} placeholder="Окружение" />
             <select
               className="field"
               value={plan}
@@ -218,6 +236,16 @@ export default function Analytics() {
                     <span className="text-xs text-muted">{hint}</span>
                   </article>
                 ))}
+              </section>
+              <section className="grid xl:grid-cols-[1.15fr_1fr] gap-5 mt-5">
+                <article className="card p-6 overflow-hidden relative">
+                  <div className="absolute -right-16 -top-20 w-56 h-56 rounded-full bg-indigo-500/10 blur-3xl" />
+                  <div className="relative flex flex-col md:flex-row md:items-center gap-6">
+                    <div className={`w-32 h-32 shrink-0 rounded-full grid place-items-center border-[10px] ${data.metrics.readiness==='READY'?'border-emerald-100 text-emerald-600':data.metrics.readiness==='AT_RISK'?'border-amber-100 text-amber-600':'border-rose-100 text-rose-600'}`}><div className="text-center"><b className="text-4xl">{data.metrics.readinessScore}</b><span className="block text-xs">из 100</span></div></div>
+                    <div className="flex-1"><p className="text-brand uppercase tracking-[.18em] text-xs font-bold m-0">Release readiness</p><h2 className="text-2xl font-medium my-2">{data.metrics.readiness==='READY'?'Проект готов к релизу':data.metrics.readiness==='AT_RISK'?'Есть риски перед релизом':'Проект пока не готов'}</h2><p className="text-muted text-sm">Индекс учитывает успешность, покрытие репозитория и стабильность повторных запусков.</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-muted">Успешность</span><b className="block text-xl">{data.metrics.passRate}%</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-muted">Покрытие</span><b className="block text-xl">{data.metrics.coverage}%</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-muted">Стабильность</span><b className="block text-xl">{data.metrics.stability}%</b></div></div></div>
+                  </div>
+                </article>
+                <article className="card p-6"><div className="flex justify-between"><div><h2 className="m-0 text-xl font-medium">Прогноз запусков</h2><p className="text-muted text-sm mt-1">Оставшееся время по фактической скорости</p></div><TimerReset className="text-brand"/></div><div className="space-y-3 mt-4">{data.forecasts.slice(0,4).map(item=><Link href={`/test-runs/${item.id}`} key={item.id} className="block rounded-xl bg-slate-50 p-3 text-current no-underline hover:ring-1 hover:ring-indigo-300"><div className="flex justify-between gap-3"><b className="truncate">{item.projectCode} · {item.name}</b><span className="text-brand font-semibold shrink-0">≈ {formatDuration(item.estimatedSeconds)}</span></div><div className="h-1.5 bg-slate-200 rounded-full mt-3 overflow-hidden"><i className="block h-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{width:`${item.total?Math.round(item.completed/item.total*100):0}%`}}/></div><span className="text-xs text-muted">Осталось {item.remaining} из {item.total}</span></Link>)}{!data.forecasts.length&&<div className="text-center py-10 text-muted"><ShieldCheck className="mx-auto mb-2 text-emerald-500"/>Активных незавершённых запусков нет</div>}</div></article>
               </section>
               <section className="grid xl:grid-cols-[1.55fr_1fr] gap-5 mt-5">
                 <article className="card p-6">
@@ -313,6 +341,10 @@ export default function Analytics() {
                     )}
                   </div>
                 </article>
+              </section>
+              <section className="grid xl:grid-cols-2 gap-5 mt-5">
+                <article className="card p-6"><div className="flex justify-between"><div><h2 className="m-0 text-xl font-medium">Flaky и регрессии</h2><p className="text-muted text-sm mt-1">Нестабильные изменения результата</p></div><Zap className="text-amber-500"/></div><div className="grid sm:grid-cols-2 gap-3 mt-4">{data.flakyCases.slice(0,4).map(item=><Link href={`/test-cases/${item.id}`} key={item.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-current no-underline"><div className="flex justify-between"><b className="text-xs text-amber-700">{item.displayId}</b><span className="rounded-full bg-white px-2 py-0.5 text-xs">{item.stability}%</span></div><span className="block text-sm mt-1 line-clamp-2">{item.title}</span><span className="text-xs text-muted">{item.transitions} смен результата</span></Link>)}{data.regressions.slice(0,4).map(item=><Link href={`/test-cases/${item.id}`} key={`r-${item.id}`} className="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-current no-underline"><div className="flex justify-between"><b className="text-xs text-rose-700">{item.displayId}</b><span className="rounded-full bg-white px-2 py-0.5 text-xs">Регрессия</span></div><span className="block text-sm mt-1 line-clamp-2">{item.title}</span></Link>)}{!data.flakyCases.length&&!data.regressions.length&&<div className="sm:col-span-2 text-center py-10 text-muted"><Sparkles className="mx-auto mb-2 text-emerald-500"/>Нестабильных кейсов и регрессий нет</div>}</div></article>
+                <article className="card p-6"><div className="flex justify-between"><div><h2 className="m-0 text-xl font-medium">Скорость выполнения</h2><p className="text-muted text-sm mt-1">Самые медленные проверки</p></div><Clock3 className="text-blue-500"/></div><div className="mt-4">{data.slowCases.slice(0,6).map((item,index)=><Link href={`/test-cases/${item.id}`} key={item.id} className="grid grid-cols-[24px_1fr_auto] gap-3 items-center py-3 border-t border-[var(--line)] text-current no-underline"><span className="text-xs text-muted">{index+1}</span><div className="min-w-0"><b className="text-xs text-brand">{item.displayId}</b><span className="block text-sm truncate">{item.title}</span></div><span className="rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">{formatDuration(item.averageDuration)}</span></Link>)}{!data.slowCases.length&&<p className="text-center text-muted py-10">Недостаточно измерений времени</p>}</div></article>
               </section>
               <section className="grid xl:grid-cols-2 gap-5 mt-5">
                 <article className="card overflow-hidden">
