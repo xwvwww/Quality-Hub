@@ -26,6 +26,23 @@ import { useI18n } from "@/lib/i18n";
 import { WorkspaceTools } from "./workspace-tools";
 import { ToastViewport } from "./toast-viewport";
 
+function formatWorkspaceTime(date: Date, timezone: string) {
+  const supportedTimezone = timezone === "Asia/Astana" ? "Asia/Almaty" : timezone;
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: supportedTimezone,
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "UTC",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  }
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter(),
     path = usePathname(),
@@ -192,7 +209,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               {now && <time className="hidden lg:flex items-center gap-2 text-xs text-muted whitespace-nowrap" dateTime={now.toISOString()} title={timezone}>
                 <Clock3 size={15} />
-                {new Intl.DateTimeFormat("ru-RU", { timeZone: timezone, dateStyle: "medium", timeStyle: "short" }).format(now)}
+                {formatWorkspaceTime(now, timezone)}
               </time>}
               <button
                 onClick={theme}
