@@ -25,6 +25,7 @@ export function QualityTrendChart({ days }: { days: Day[] }) {
   const passPath = days.map((day, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${passY(passRate(day)).toFixed(1)}`).join(" ");
   if (!days.length) return <div className="h-64 grid place-items-center text-muted">Недостаточно данных для графика</div>;
   const activeDay = active === null ? null : days[active];
+  const labelStep = Math.max(1, Math.ceil(days.length / 10));
   return <div className="relative mt-5">
     <div className="flex items-center justify-between mb-2 px-1">
       <span className="text-xs text-muted">Объём выполнения</span>
@@ -50,7 +51,7 @@ export function QualityTrendChart({ days }: { days: Day[] }) {
       })}
       <path d={passPath} fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="quality-trend-line" filter={`url(#${gradientId}-glow)`} />
       {days.map((day, index) => <circle key={`${day.date}-rate`} cx={x(index)} cy={passY(passRate(day))} r={active === index ? 5 : 3.5} fill="#22d3ee" stroke="white" strokeWidth="2" className={active === index ? "quality-trend-point-active" : ""} />)}
-      {days.map((day, index) => <text key={`${day.date}-label`} x={x(index)} y={height - 14} textAnchor="middle" className="fill-slate-400 text-[10px]">{new Date(`${day.date}T00:00:00`).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</text>)}
+      {days.map((day, index) => index % labelStep === 0 || index === days.length - 1 ? <text key={`${day.date}-label`} x={x(index)} y={height - 14} textAnchor="middle" className="fill-slate-400 text-[10px]">{new Date(`${day.date}T00:00:00`).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</text> : null)}
     </svg>
     {activeDay && <div className="absolute top-7 right-3 card px-4 py-3 shadow-xl pointer-events-none text-xs z-10 min-w-44">
       <b className="block mb-2">{new Date(`${activeDay.date}T00:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</b>
