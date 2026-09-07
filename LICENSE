@@ -1,15 +1,43 @@
 QUALITY HUB PROPRIETARY SOFTWARE LICENSE
 
-Copyright © 2026 Almen Alnur. All rights reserved.
+Copyright (c) 2026 Almen Alnur. All rights reserved.
 
-Quality Hub, including its source code, user interface, documentation,
-database schema, visual design, and related materials, is proprietary
-software authored and owned by Almen Alnur.
+1. Ownership
 
-No part of this software may be copied, modified, distributed, published,
-sublicensed, sold, reverse engineered, or used commercially without prior
-written permission from Almen Alnur.
+Quality Hub, including its source code, object code, user interface,
+visual design, documentation, database schema, configuration, branding,
+logos, artwork, and related materials (the "Software"), is proprietary
+software owned by Almen Alnur unless a file or dependency states otherwise.
+Third-party components remain subject to their own licenses.
+
+2. Permission
+
+No license is granted except the limited permission to view the Software
+for evaluation and development review. Any other use requires prior written
+permission from the copyright holder.
+
+3. Restrictions
+
+Without prior written permission, you may not copy, modify, merge, publish,
+distribute, sublicense, sell, rent, lease, host as a service, commercially
+use, create derivative works from, or reverse engineer the Software or any
+substantial part of it. You may not remove copyright, trademark, or other
+proprietary notices.
+
+4. Contributions and forks
+
+Contributions, patches, and forks do not grant public redistribution rights.
+Any contribution must preserve this license unless a separate written
+agreement says otherwise.
+
+5. No warranty and limitation of liability
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, TITLE, AND NON-INFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY LAW,
+THE COPYRIGHT HOLDER IS NOT LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, OR EXEMPLARY DAMAGES ARISING FROM USE OF THE SOFTWARE.
+
+For permission requests, contact the copyright holder through the repository
+owner's verified public contact channel. Do not publish private credentials,
+personal data, or production configuration in issues or pull requests.

@@ -1,80 +1,145 @@
 # Quality Hub
 
 <div align="center">
-  <strong>Современное рабочее пространство для управления качеством продукта</strong>
-  <br><br>
-  <a href="https://github.com/xwvwww/Quality-Hub/actions"><img alt="Quality Hub CI" src="https://github.com/xwvwww/Quality-Hub/actions/workflows/quality.yml/badge.svg"></a>
-  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-111827?logo=nextdotjs">
-  <img alt="NestJS" src="https://img.shields.io/badge/NestJS-API-E0234E?logo=nestjs">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
+  <h3>Quality intelligence for teams that ship with confidence.</h3>
+  <p>Единое рабочее пространство для тест-кейсов, запусков, дефектов, аналитики и отчётности.</p>
+  <p>
+    <a href="https://github.com/xwvwww/Quality-Hub/actions/workflows/quality.yml"><img alt="CI" src="https://github.com/xwvwww/Quality-Hub/actions/workflows/quality.yml/badge.svg"></a>
+    <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-111827?logo=nextdotjs&logoColor=white">
+    <img alt="NestJS" src="https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white">
+    <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white">
+    <img alt="License" src="https://img.shields.io/badge/license-proprietary-6366f1">
+  </p>
 </div>
 
-## О проекте
+---
 
-Quality Hub объединяет ежедневные QA-процессы в одном интерфейсе: от требований и тест-кейсов до запусков, дефектов, аналитики и отчётов. Платформа создана для команд, которым важны прозрачность, трассируемость и понятная картина качества.
+## What is Quality Hub?
 
-## Возможности
+Quality Hub помогает QA-командам держать весь цикл качества в одном месте: от требований и тест-дизайна до выполнения, дефектов, трассируемости и управленческой аналитики.
 
-- проекты, требования и трассируемость;
-- версионируемые тест-кейсы с шагами и приоритетами;
-- тест-планы и масштабируемые тестовые запуски;
-- фиксация результатов, времени и вложений;
-- дефекты, Kanban-представление и командные комментарии;
-- метрики, аналитика и печатные отчёты;
-- роли, профили, активные сессии и журнал аудита;
-- светлая и тёмная темы, глобальный поиск и уведомления.
+Платформа рассчитана на multi-tenant рабочие пространства с разграничением ролей, аудитом действий, защищёнными сессиями и отдельным системным администрированием.
 
-## Технологии
+## Product Surface
 
-| Уровень | Стек |
+| Area | What it covers |
 |---|---|
-| Web | Next.js, React, TypeScript, Tailwind CSS |
-| API | NestJS, Prisma, REST |
-| Data | PostgreSQL |
-| Quality | Jest, TypeScript, GitHub Actions |
+| **Workspace** | Проекты, команды, требования и окружения |
+| **Test design** | Версионируемые тест-кейсы, шаги, папки, шаблоны и теги |
+| **Execution** | Тест-планы, тест-раны, результаты шагов, блокировки и reruns |
+| **Defects** | Регистрация дефектов, статусы, Kanban, вложения и связи с кейсами |
+| **Insights** | Dashboard, аналитика качества, readiness-метрики и прогнозы |
+| **Reports** | PDF/JSON-отчёты, фоновые задачи и экспорт результатов |
+| **Automation** | API keys и приём результатов автоматизированных прогонов |
+| **Performance** | JMeter-запуски, метрики, сравнения и CI-интеграции |
+| **Governance** | Роли, аудит, уведомления, сессии и system administration |
 
-## Локальный запуск
+## Architecture
 
-Потребуются Node.js 22+, pnpm 9+ и PostgreSQL 16. Параметры среды создаются на основе `.env.example`.
+```mermaid
+flowchart LR
+    U[QA team] --> F[Frontend\nNext.js / React]
+    A[System admin] --> AD[Admin portal\nNext.js]
+    F --> API[Backend API\nNestJS / REST]
+    AD --> API
+    API --> DB[(PostgreSQL\nPrisma)]
+    API --> FS[Protected file storage]
+    API --> R[Reports / analytics / automation]
+    CI[GitHub Actions] --> API
+```
+
+## Technology
+
+- **Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Admin portal:** separate Next.js application
+- **Backend:** NestJS 11, REST, Swagger, validation and role guards
+- **Data:** PostgreSQL 16, Prisma ORM and migrations
+- **Quality gates:** Jest, Playwright, TypeScript, GitHub Actions
+- **Security:** Argon2 password hashing, short-lived access tokens, rotated refresh sessions, HttpOnly cookies, tenant scoping and audit logging
+
+## Repository Layout
+
+```text
+apps/
+  frontend/    Main QA workspace
+  admin/       System administration portal
+  backend/     NestJS API and Prisma schema
+e2e/           Playwright scenarios
+scripts/       Backup and restore helpers
+.github/       CI workflow
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 22 or newer
+- Corepack with pnpm 9+
+- PostgreSQL 16
+
+### Setup
 
 ```powershell
 corepack enable
 corepack pnpm install
-corepack pnpm --filter backend prisma generate
-corepack pnpm --filter backend prisma migrate deploy
+Copy-Item .env.example .env
+corepack pnpm run db:generate
+corepack pnpm run db:migrate
+```
+
+Configure `.env` locally with your own secrets and database values. Never commit `.env`, production credentials, access tokens, private keys, or real user data.
+
+### Run locally
+
+Start each service in a separate terminal:
+
+```powershell
 corepack pnpm --filter backend dev
-```
-
-Во втором терминале:
-
-```powershell
 corepack pnpm --filter frontend dev
+corepack pnpm run dev:admin
 ```
 
-Frontend будет доступен по адресу `http://localhost:3000`.
+Local endpoints:
 
-Системное администрирование вынесено в отдельное приложение. В третьем терминале:
+- Workspace: `http://localhost:3000`
+- Admin portal: `http://localhost:3001`
+- API: `http://localhost:4000/api`
+- Swagger in development: `http://localhost:4000/api/docs`
 
-```powershell
-corepack pnpm --filter admin-portal dev
-```
+Seed data is intended for local development only. Use non-production credentials and do not expose seeded accounts publicly.
 
-Пользовательский портал работает на `http://localhost:3000`, административный — на `http://localhost:3001`. Системный администратор управляет организациями, учётными записями, ролями и аудитом; рабочие QA-данные остаются в пользовательском портале.
-
-## Проверка качества
+## Quality Checks
 
 ```powershell
 corepack pnpm typecheck
 corepack pnpm test
 corepack pnpm build
+corepack pnpm audit --prod --audit-level high
 ```
 
-## Владелец и автор
+End-to-end tests require the services and test database described in [START.md](START.md).
 
-Quality Hub создан и разработан **Almen Alnur**.
+## Security and Privacy
 
-Copyright © 2026 Almen Alnur. All rights reserved.
+- Keep `.env` files, logs, uploads, backups and generated reports outside commits.
+- Use unique secrets for every environment; the values in `.env.example` are placeholders for local setup only.
+- Do not add customer data, real email addresses, passwords, tokens, API keys, database dumps or private screenshots to the repository.
+- Report a suspected vulnerability privately through a verified repository-owner contact channel. Do not include credentials or personal data in a public issue.
 
-## Лицензия
+## Documentation
 
-Это проприетарное программное обеспечение. Копирование, изменение, распространение или коммерческое использование без письменного разрешения владельца запрещено. Полные условия приведены в [LICENSE](LICENSE).
+- [Local setup and troubleshooting](START.md)
+- [Proprietary license](LICENSE)
+- [Quality Hub CI](.github/workflows/quality.yml)
+
+## Ownership
+
+Quality Hub was created and developed by **Almen Alnur**.
+
+Copyright (c) 2026 Almen Alnur. All rights reserved.
+
+The source code, interface, visual language, documentation and brand materials are proprietary. See [LICENSE](LICENSE) for the complete terms.
+
+## License
+
+Quality Hub is distributed under a proprietary license. Viewing the repository does not grant rights to copy, modify, distribute, host, sell or commercially use the Software without prior written permission. See [LICENSE](LICENSE).
