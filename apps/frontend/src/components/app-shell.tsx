@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   BarChart3,
   ClipboardCheck,
+  Clock3,
   ListTodo,
   FileText,
   FolderKanban,
@@ -31,7 +32,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { t } = useI18n();
   const [hydrated, setHydrated] = useState(false),
     [dark, setDark] = useState(false),
-    [avatar, setAvatar] = useState("");
+    [avatar, setAvatar] = useState(""),
+    [now, setNow] = useState<Date | null>(null),
+    [timezone, setTimezone] = useState("Asia/Qyzylorda");
   const [profile, setProfile] = useState<{
     firstName: string;
     lastName: string;
@@ -70,6 +73,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
       .then(setProfile)
       .catch(() => undefined);
+    api<{ timezone: string }>("/profile/preferences")
+      .then((preferences) => setTimezone(preferences.timezone))
+      .catch(() => undefined);
+    setNow(new Date());
+    const clock = setInterval(() => setNow(new Date()), 1000);
     [
       "/dashboard",
       "/projects",
@@ -86,6 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       "/profile",
       "/profile/settings",
     ].forEach((href) => router.prefetch(href));
+    return () => clearInterval(clock);
   }, [router]);
   useEffect(() => {
     let url = "";
@@ -181,6 +190,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="workspace-header-tools">
                 <WorkspaceTools />
               </div>
+              {now && <time className="hidden lg:flex items-center gap-2 text-xs text-muted whitespace-nowrap" dateTime={now.toISOString()} title={timezone}>
+                <Clock3 size={15} />
+                {new Intl.DateTimeFormat("ru-RU", { timeZone: timezone, dateStyle: "medium", timeStyle: "short" }).format(now)}
+              </time>}
               <button
                 onClick={theme}
                 className="icon-btn h-10 w-10"

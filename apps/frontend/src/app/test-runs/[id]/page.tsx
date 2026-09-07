@@ -583,8 +583,8 @@ export default function RunExecution() {
             {canManage&&<div className="grid grid-cols-[1fr_auto] gap-2 mb-2"><select className="field text-sm" value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">Без исполнителя</option>{members.map(member=><option key={member.user.id} value={member.user.id}>{`${member.user.firstName} ${member.user.lastName}`.trim()||member.user.email}</option>)}</select><button className="btn-secondary px-3" disabled={!checked.length||saving} onClick={bulkAssign}>Назначить {checked.length||''}</button></div>}
             <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
               {data.items.map((entry) => (
-                <div key={entry.id} className="flex items-start gap-1">
-                {canManage&&<input type="checkbox" className="mt-4 accent-indigo-600" checked={checked.includes(entry.id)} onChange={e=>setChecked(current=>e.target.checked?[...current,entry.id]:current.filter(id=>id!==entry.id))}/>}<button
+                <div key={entry.id} className="flex items-center gap-1">
+                {canManage&&<input type="checkbox" className="self-center accent-indigo-600" checked={checked.includes(entry.id)} onChange={e=>setChecked(current=>e.target.checked?[...current,entry.id]:current.filter(id=>id!==entry.id))}/>}<button
                   ref={entry.id === selected ? activeCaseRef : undefined}
                   onClick={() => setSelected(entry.id)}
                   className={`w-full border-0 text-left p-3 rounded-lg mb-1 cursor-pointer [content-visibility:auto] [contain-intrinsic-size:72px] ${entry.id === selected ? "bg-indigo-50 text-brand" : "bg-transparent hover:bg-slate-50"}`}

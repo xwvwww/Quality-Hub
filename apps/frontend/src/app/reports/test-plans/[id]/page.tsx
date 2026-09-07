@@ -302,16 +302,6 @@ export default function PlanReport() {
                       )}
                     </div>
                   )}
-                  {c.defects.length > 0 && (
-                    <div className="mt-4">
-                      <b>Связанные дефекты</b>
-                      {c.defects.map((d) => (
-                        <p key={d.displayId} className="text-red-700">
-                          {d.displayId} · {d.title} · {d.status}
-                        </p>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </details>
             ))}

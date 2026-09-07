@@ -314,15 +314,6 @@ export class ReportDocumentBuilder {
               } as Content,
             ]
           : []),
-        ...(testCase.defects.length
-          ? [
-              {
-                text: `Дефекты: ${testCase.defects.map((item) => `${item.displayId} · ${item.title}`).join("; ")}`,
-                color: "#b91c1c",
-                margin: [0, 6, 0, 2],
-              } as Content,
-            ]
-          : []),
         ...(attachments.length
           ? [
               {
