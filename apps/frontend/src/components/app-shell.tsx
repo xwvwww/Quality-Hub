@@ -207,9 +207,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="workspace-header-tools">
                 <WorkspaceTools />
               </div>
-              {now && <time className="hidden lg:flex items-center gap-2.5 rounded-lg border border-[var(--line)] bg-slate-50 px-3 py-1.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200" dateTime={now.toISOString()} title={timezone}>
-                <Clock3 size={16} className="text-brand" />
-                <span className="leading-tight"><b className="block font-mono tracking-wide text-slate-900 dark:text-slate-100">{formatWorkspaceTime(now, timezone)}</b><span className="block text-[10px] text-muted">{timezone === "Asia/Astana" ? "Asia/Almaty" : timezone}</span></span>
+              {now && <time className="hidden lg:flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" dateTime={now.toISOString()} title={timezone}>
+                <Clock3 size={16} className="text-indigo-500" />
+                <span className="leading-tight"><b className="block font-mono tracking-wide text-slate-700 dark:text-slate-100">{formatWorkspaceTime(now, timezone)}</b><span className="block text-[10px] text-slate-400 dark:text-slate-400">{timezone === "Asia/Astana" ? "Asia/Almaty" : timezone}</span></span>
               </time>}
               <button
                 onClick={theme}
