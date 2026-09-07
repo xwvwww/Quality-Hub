@@ -228,6 +228,17 @@ textarea {
 .flex-1 > header {
   backdrop-filter: none !important;
 }
+.workspace-clock {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.workspace-clock-value {
+  color: #475467;
+}
+.dark .workspace-clock-value {
+  color: #e5e7eb;
+}
 .field.w-64,
 .field.min-w-56 {
   width: 16rem;
