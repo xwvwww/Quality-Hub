@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useState } from "react";
 
 type Day = { date: string; total: number; passed: number; failed: number; blocked: number };
-const series = [
+const bars = [
   { key: "passed" as const, label: "Успешно", color: "#10b981" },
   { key: "failed" as const, label: "Провалено", color: "#f43f5e" },
   { key: "blocked" as const, label: "Заблокировано", color: "#f59e0b" },
@@ -11,31 +11,53 @@ const series = [
 
 export function QualityTrendChart({ days }: { days: Day[] }) {
   const [active, setActive] = useState<number | null>(null);
-  const width = 760, height = 250, left = 24, right = 18, top = 20, bottom = 30;
-  const max = Math.max(1, ...days.flatMap((day) => [day.passed, day.failed, day.blocked]));
-  const x = (index: number) => left + index * ((width - left - right) / Math.max(1, days.length - 1));
-  const y = (value: number) => top + (height - top - bottom) * (1 - value / max);
-  const paths = useMemo(() => Object.fromEntries(series.map(({ key }) => [key, days.map((day, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(day[key]).toFixed(1)}`).join(" ")])), [days, max]);
+  const gradientId = useId().replaceAll(":", "");
+  const width = 820, height = 300, left = 38, right = 34, top = 26, bottom = 42;
+  const plotHeight = height - top - bottom;
+  const plotWidth = width - left - right;
+  const max = Math.max(1, ...days.map((day) => day.total));
+  const x = (index: number) => left + (index + 0.5) * (plotWidth / Math.max(1, days.length));
+  const passY = (value: number) => top + plotHeight * (1 - value / 100);
+  const passRate = (day: Day) => {
+    const executed = day.passed + day.failed + day.blocked;
+    return executed ? day.passed / executed * 100 : 0;
+  };
+  const passPath = days.map((day, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${passY(passRate(day)).toFixed(1)}`).join(" ");
   if (!days.length) return <div className="h-64 grid place-items-center text-muted">Недостаточно данных для графика</div>;
+  const activeDay = active === null ? null : days[active];
   return <div className="relative mt-5">
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-64 overflow-visible" role="img" aria-label="Динамика результатов тестирования">
+    <div className="flex items-center justify-between mb-2 px-1">
+      <span className="text-xs text-muted">Объём выполнения</span>
+      <span className="text-xs text-muted"><i className="inline-block w-2 h-2 rounded-full bg-cyan-400 mr-1" />Pass rate</span>
+    </div>
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-72 overflow-visible" role="img" aria-label="Объём результатов и динамика успешности тестирования">
       <defs>
-        <linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#10b981" stopOpacity=".24"/><stop offset="1" stopColor="#10b981" stopOpacity="0"/></linearGradient>
-        <filter id="trend-glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id={`${gradientId}-pass`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#22d3ee" stopOpacity=".25" /><stop offset="1" stopColor="#22d3ee" stopOpacity="0" /></linearGradient>
+        <linearGradient id={`${gradientId}-bar`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#6366f1" stopOpacity=".16" /><stop offset="1" stopColor="#6366f1" stopOpacity="0" /></linearGradient>
+        <filter id={`${gradientId}-glow`}><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
-      {[0, .25, .5, .75, 1].map((ratio) => <line key={ratio} x1={left} x2={width-right} y1={top+(height-top-bottom)*ratio} y2={top+(height-top-bottom)*ratio} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeDasharray="4 7"/>) }
-      <path d={`${paths.passed} L${x(days.length-1)},${height-bottom} L${x(0)},${height-bottom} Z`} fill="url(#trend-area)"/>
-      {series.map(({ key, color }) => <path key={key} d={paths[key]} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="quality-trend-line" filter="url(#trend-glow)"/>) }
-      {days.map((day, index) => <g key={day.date} onMouseEnter={() => setActive(index)} onMouseLeave={() => setActive(null)}>
-        <rect x={x(index)-Math.max(8,(width-left-right)/days.length/2)} y={top} width={Math.max(16,(width-left-right)/days.length)} height={height-top-bottom} fill="transparent"/>
-        {active===index&&<line x1={x(index)} x2={x(index)} y1={top} y2={height-bottom} stroke="#6366f1" strokeDasharray="3 4"/>}
-        {series.map(({key,color})=><circle key={key} cx={x(index)} cy={y(day[key])} r={active===index?5:3} fill={color} stroke="white" strokeWidth="2" className={active===index ? "quality-trend-point-active" : ""}/>) }
-      </g>)}
+      {[0, .25, .5, .75, 1].map((ratio) => <g key={ratio}><line x1={left} x2={width - right} y1={top + plotHeight * ratio} y2={top + plotHeight * ratio} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeDasharray="3 8" /><text x={left - 8} y={top + plotHeight * ratio + 4} textAnchor="end" className="fill-slate-400 text-[10px]">{Math.round(max * (1 - ratio))}</text></g>)}
+      <path d={`${passPath} L${x(days.length - 1)},${height - bottom} L${x(0)},${height - bottom} Z`} fill={`url(#${gradientId}-pass)`} />
+      {days.map((day, index) => {
+        const barWidth = Math.min(30, Math.max(10, plotWidth / days.length * .52));
+        let offset = 0;
+        return <g key={day.date} onMouseEnter={() => setActive(index)} onMouseLeave={() => setActive(null)}>
+          <rect x={x(index) - Math.max(14, plotWidth / days.length / 2)} y={top} width={Math.max(28, plotWidth / days.length)} height={plotHeight} fill="transparent" />
+          {active === index && <rect x={x(index) - Math.max(14, plotWidth / days.length / 2)} y={top} width={Math.max(28, plotWidth / days.length)} height={plotHeight} rx="8" fill={`url(#${gradientId}-bar)`} />}
+          {bars.map(({ key, color }) => { const value = day[key]; const segmentHeight = plotHeight * value / max; const segmentY = height - bottom - offset - segmentHeight; offset += segmentHeight; return <rect key={key} x={x(index) - barWidth / 2} y={segmentY} width={barWidth} height={Math.max(value ? 2 : 0, segmentHeight)} rx="4" fill={color} className="quality-trend-bar" opacity={active === null || active === index ? 1 : .72} />; })}
+          {active === index && <line x1={x(index)} x2={x(index)} y1={top} y2={height - bottom} stroke="#22d3ee" strokeDasharray="3 5" />}
+        </g>;
+      })}
+      <path d={passPath} fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="quality-trend-line" filter={`url(#${gradientId}-glow)`} />
+      {days.map((day, index) => <circle key={`${day.date}-rate`} cx={x(index)} cy={passY(passRate(day))} r={active === index ? 5 : 3.5} fill="#22d3ee" stroke="white" strokeWidth="2" className={active === index ? "quality-trend-point-active" : ""} />)}
+      {days.map((day, index) => <text key={`${day.date}-label`} x={x(index)} y={height - 14} textAnchor="middle" className="fill-slate-400 text-[10px]">{new Date(`${day.date}T00:00:00`).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</text>)}
     </svg>
-    {active!==null&&<div className="absolute top-3 right-3 card px-4 py-3 shadow-xl pointer-events-none text-xs z-10">
-      <b className="block mb-2">{new Date(days[active].date+"T00:00:00").toLocaleDateString("ru-RU")}</b>
-      {series.map(({key,label,color})=><span className="flex justify-between gap-8 mt-1" key={key}><i style={{color}}>● {label}</i><b>{days[active][key]}</b></span>)}
+    {activeDay && <div className="absolute top-7 right-3 card px-4 py-3 shadow-xl pointer-events-none text-xs z-10 min-w-44">
+      <b className="block mb-2">{new Date(`${activeDay.date}T00:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</b>
+      <span className="flex justify-between gap-8 text-cyan-600"><i>● Pass rate</i><b>{Math.round(passRate(activeDay))}%</b></span>
+      {bars.map(({ key, label, color }) => <span className="flex justify-between gap-8 mt-1" key={key}><i style={{ color }}>● {label}</i><b>{activeDay[key]}</b></span>)}
+      <span className="flex justify-between gap-8 mt-2 pt-2 border-t border-[var(--line)]"><span className="text-muted">Всего</span><b>{activeDay.total}</b></span>
     </div>}
-    <div className="flex flex-wrap justify-center gap-5 text-xs text-muted -mt-2">{series.map(({key,label,color})=><span key={key}><i style={{color}}>●</i> {label}</span>)}</div>
+    <div className="flex flex-wrap justify-center gap-5 text-xs text-muted -mt-3">{bars.map(({ key, label, color }) => <span key={key}><i style={{ color }}>●</i> {label}</span>)}<span><i className="text-cyan-400">━</i> Pass rate</span></div>
   </div>;
 }

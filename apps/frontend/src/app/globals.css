@@ -343,4 +343,13 @@ input[type="checkbox"]:disabled {
 .quality-trend-point-active {
   animation: quality-trend-point-pulse .9s ease-in-out infinite;
 }
+.quality-trend-bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: quality-trend-bar-rise .75s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes quality-trend-bar-rise {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
+}
 @keyframes quality-trend-draw { to { stroke-dashoffset: 0; } }
