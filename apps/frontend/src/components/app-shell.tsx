@@ -31,14 +31,35 @@ function formatWorkspaceTime(date: Date, timezone: string) {
   try {
     return new Intl.DateTimeFormat("ru-RU", {
       timeZone: supportedTimezone,
-      dateStyle: "medium",
-      timeStyle: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     }).format(date);
   } catch {
     return new Intl.DateTimeFormat("ru-RU", {
       timeZone: "UTC",
-      dateStyle: "medium",
-      timeStyle: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  }
+}
+
+function formatWorkspaceDate(date: Date, timezone: string) {
+  const supportedTimezone = timezone === "Asia/Astana" ? "Asia/Almaty" : timezone;
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: supportedTimezone,
+      weekday: "short",
+      day: "numeric",
+      month: "long",
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "UTC",
+      weekday: "short",
+      day: "numeric",
+      month: "long",
     }).format(date);
   }
 }
@@ -207,9 +228,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="workspace-header-tools">
                 <WorkspaceTools />
               </div>
-              {now && <time className="workspace-clock hidden lg:flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs shadow-sm" dateTime={now.toISOString()} title={timezone}>
-                <Clock3 size={16} className="text-indigo-500" />
-                <span className="leading-tight"><b className="workspace-clock-value block font-mono tracking-wide">{formatWorkspaceTime(now, timezone)}</b><span className="block text-[10px]">{timezone === "Asia/Astana" ? "Asia/Almaty" : timezone}</span></span>
+              {now && <time className="workspace-clock hidden lg:flex items-center gap-3 rounded-xl px-3.5 py-1.5 shadow-sm" dateTime={now.toISOString()} title={timezone}>
+                <span className="workspace-clock-icon grid place-items-center rounded-lg">
+                  <Clock3 size={16} />
+                </span>
+                <span className="leading-none">
+                  <b className="workspace-clock-value block font-mono text-base font-semibold tracking-tight">{formatWorkspaceTime(now, timezone)}</b>
+                  <span className="workspace-clock-date block mt-1 text-[10px] font-medium capitalize">{formatWorkspaceDate(now, timezone)}</span>
+                </span>
+                <span className="workspace-clock-zone self-start rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-wider">
+                  {timezone === "Asia/Astana" ? "Almaty" : timezone.split("/").pop()}
+                </span>
               </time>}
               <button
                 onClick={theme}

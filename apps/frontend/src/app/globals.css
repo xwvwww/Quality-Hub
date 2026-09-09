@@ -229,15 +229,42 @@ textarea {
   backdrop-filter: none !important;
 }
 .workspace-clock {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, #6366f1), var(--panel));
+  border: 1px solid color-mix(in srgb, #6366f1 18%, var(--line));
+  color: var(--muted);
+  box-shadow: 0 5px 18px #4f46e514;
+}
+.workspace-clock-icon {
+  width: 2rem;
+  height: 2rem;
+  color: #6366f1;
+  background: color-mix(in srgb, #6366f1 12%, var(--panel));
+}
+.workspace-clock-date {
   color: var(--muted);
 }
+.workspace-clock-zone {
+  color: #6366f1;
+  background: color-mix(in srgb, #6366f1 11%, var(--panel));
+}
 .workspace-clock-value {
-  color: #475467;
+  color: #344054;
 }
 .dark .workspace-clock-value {
   color: #e5e7eb;
+}
+.dark .workspace-clock {
+  background: linear-gradient(135deg, #1d2135, var(--panel));
+  border-color: #7777ee45;
+  box-shadow: 0 8px 24px #0004, 0 0 18px #6657e61c;
+}
+.dark .workspace-clock-icon {
+  color: #a5b4fc;
+  background: #6366f126;
+}
+.dark .workspace-clock-zone {
+  color: #c4b5fd;
+  background: #6366f126;
 }
 .field.w-64,
 .field.min-w-56 {

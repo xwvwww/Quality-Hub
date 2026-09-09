@@ -7,15 +7,18 @@ type Sla={p95Ms:number;maxErrorRate:number;minThroughput:number};
 export class PerformanceService {
   constructor(private readonly prisma:PrismaService){}
   preview(file:{originalname:string;size:number;buffer:Buffer},sla:Sla){return this.report(this.parse(file),sla);}
-  async create(organizationId:string,userId:string,input:{projectId:string;testRunId?:string;name:string;environment?:string;build?:string;sla:Sla},file:{originalname:string;size:number;buffer:Buffer}){
+  async create(organizationId:string,userId:string,input:{projectId:string;testRunId?:string;name:string;environment?:string;build?:string;scenario?:string;loadValue?:string|number;loadUnit?:string;sla:Sla},file:{originalname:string;size:number;buffer:Buffer}){
     if(!input.name?.trim()||input.name.trim().length<2)throw new BadRequestException('Укажите название нагрузочного запуска');
     if(!await this.prisma.project.findFirst({where:{id:input.projectId,organizationId},select:{id:true}}))throw new NotFoundException('Проект не найден');
     if(input.testRunId&&!await this.prisma.testRun.findFirst({where:{id:input.testRunId,projectId:input.projectId}}))throw new BadRequestException('Тест-ран не относится к выбранному проекту');
+    const loadValue = input.loadValue === undefined || input.loadValue === '' ? null : Number(input.loadValue);
+    if (loadValue !== null && (!Number.isInteger(loadValue) || loadValue < 1 || loadValue > 10_000_000)) throw new BadRequestException('Уровень нагрузки должен быть целым числом от 1 до 10 000 000');
+    const loadUnit = input.loadUnit && ['VIRTUAL_USERS', 'REQUESTS_PER_SECOND', 'CONCURRENT_REQUESTS'].includes(input.loadUnit) ? input.loadUnit : null;
     const report=this.report(this.parse(file),input.sla);
-    const created=await this.prisma.performanceRun.create({data:{organizationId,projectId:input.projectId,testRunId:input.testRunId||null,createdById:userId,name:input.name.trim(),environment:input.environment?.trim()||null,build:input.build?.trim()||null,...this.dbMetrics(report),sla:input.sla as unknown as Prisma.InputJsonValue,slaPassed:report.slaPassed,labels:{create:report.labels.map(label=>({...this.dbLabelMetrics(label),label:label.label}))}},include:{labels:{orderBy:{p95Ms:'desc'}}}});
+    const created=await this.prisma.performanceRun.create({data:{organizationId,projectId:input.projectId,testRunId:input.testRunId||null,createdById:userId,name:input.name.trim(),environment:input.environment?.trim()||null,build:input.build?.trim()||null,scenario:input.scenario?.trim()||null,loadValue,loadUnit,...this.dbMetrics(report),sla:input.sla as unknown as Prisma.InputJsonValue,slaPassed:report.slaPassed,labels:{create:report.labels.map(label=>({...this.dbLabelMetrics(label),label:label.label}))}},include:{labels:{orderBy:{p95Ms:'desc'}}}});
     return this.present(created);
   }
-  async list(organizationId:string,projectId?:string){const items=await this.prisma.performanceRun.findMany({where:{organizationId,...(projectId?{projectId}:{})},orderBy:{createdAt:'desc'},take:100,include:{project:{select:{code:true,name:true}},labels:{orderBy:{p95Ms:'desc'},take:5}}});return items.map(item=>this.present(item));}
+  async list(organizationId:string,projectId?:string){const items=await this.prisma.performanceRun.findMany({where:{organizationId,...(projectId?{projectId}:{})},orderBy:[{loadValue:'asc'},{createdAt:'desc'}],take:100,include:{project:{select:{code:true,name:true}},labels:{orderBy:{p95Ms:'desc'},take:5}}});return items.map(item=>this.present(item));}
   async detail(organizationId:string,id:string){const item=await this.prisma.performanceRun.findFirst({where:{id,organizationId},include:{project:{select:{code:true,name:true}},labels:{orderBy:{p95Ms:'desc'}}}});if(!item)throw new NotFoundException('Нагрузочный запуск не найден');return this.present(item);}
   private parse(file:{originalname:string;size:number;buffer:Buffer}){
     if(!file)throw new BadRequestException('Выберите JTL или CSV файл');

@@ -107,6 +107,12 @@ enum PerformanceSource {
   JMETER
 }
 
+enum PerformanceLoadUnit {
+  VIRTUAL_USERS
+  REQUESTS_PER_SECOND
+  CONCURRENT_REQUESTS
+}
+
 model User {
   id            String               @id @default(uuid()) @db.Uuid
   email         String               @unique @db.VarChar(255)
@@ -409,6 +415,9 @@ model PerformanceRun {
   name           String            @db.VarChar(255)
   environment    String?           @db.VarChar(100)
   build          String?           @db.VarChar(100)
+  scenario       String?           @db.VarChar(150)
+  loadValue      Int?
+  loadUnit       PerformanceLoadUnit?
   sampleCount    Int
   errorCount     Int
   durationMs     Int

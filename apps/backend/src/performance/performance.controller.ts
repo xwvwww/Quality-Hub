@@ -17,7 +17,7 @@ export class PerformanceController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
   async ci(@Headers('x-api-key') rawKey: string | undefined, @UploadedFile() file: any, @Body() body: any, @Res({ passthrough: true }) response: Response) {
     const key = await this.automation.authenticateKey(rawKey);
-    const result = await this.service.create(key.organizationId, key.createdById, { projectId: key.projectId, name: body.name || 'JMeter CI', environment: body.environment, build: body.build, sla: this.parseSla(body) }, file);
+    const result = await this.service.create(key.organizationId, key.createdById, { projectId: key.projectId, name: body.name || 'JMeter CI', environment: body.environment, build: body.build, scenario: body.scenario, loadValue: body.loadValue, loadUnit: body.loadUnit, sla: this.parseSla(body) }, file);
     await this.automation.markKeyUsed(key.id);
     if (!result.slaPassed) response.status(HttpStatus.UNPROCESSABLE_ENTITY);
     return { ...result, pipelineStatus: result.slaPassed ? 'passed' : 'failed', exitCode: result.slaPassed ? 0 : 1 };
@@ -28,7 +28,7 @@ export class PerformanceController {
   @Post('jmeter/import') @Roles(...importers)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
   create(@Req() req: AuthRequest, @UploadedFile() file: any, @Body() body: any) {
-    return this.service.create(req.user.organizationId, req.user.sub, { projectId: body.projectId, testRunId: body.testRunId, name: body.name, environment: body.environment, build: body.build, sla: this.parseSla(body) }, file);
+    return this.service.create(req.user.organizationId, req.user.sub, { projectId: body.projectId, testRunId: body.testRunId, name: body.name, environment: body.environment, build: body.build, scenario: body.scenario, loadValue: body.loadValue, loadUnit: body.loadUnit, sla: this.parseSla(body) }, file);
   }
   @Get() list(@Req() req: AuthRequest, @Query('projectId') projectId?: string) { return this.service.list(req.user.organizationId, projectId); }
   @Get(':id') detail(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(req.user.organizationId, id); }

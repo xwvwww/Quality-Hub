@@ -1,5 +1,5 @@
 import { RunStatus } from '@prisma/client';
-import { AnalyticsService } from './analytics.service';
+import { AnalyticsService, localDateKey } from './analytics.service';
 
 const result = (status: RunStatus, day: number, durationSeconds = 10) => ({
   status,
@@ -13,6 +13,12 @@ const result = (status: RunStatus, day: number, durationSeconds = 10) => ({
 
 describe('AnalyticsService quality intelligence', () => {
   const service = new AnalyticsService({} as never);
+
+  it('builds daily keys in the local calendar instead of shifting them to UTC', () => {
+    const date = new Date(2026, 8, 9, 1);
+
+    expect(localDateKey(date)).toBe('2026-09-09');
+  });
 
   it('detects a flaky case from repeated status transitions', () => {
     const [health] = service.caseHealth([

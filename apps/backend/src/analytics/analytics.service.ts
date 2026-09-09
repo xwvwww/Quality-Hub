@@ -5,6 +5,13 @@ import { AnalyticsQueryDto } from './analytics.dto';
 
 type CaseResult = { status: RunStatus; durationSeconds: number | null; createdAt: Date; runCase: { testCase: { id: string; caseNumber: number; title: string }; testRun: { id: string; name: string; project: { code: string } } } };
 
+export function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -25,8 +32,8 @@ export class AnalyticsService {
     const typedResults = results as CaseResult[];
     const userIds = [...new Set(results.map(item => item.executedById))];
     const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true, email: true } });
-    const dates = Array.from({ length: query.days }, (_, offset) => { const date = new Date(since); date.setDate(date.getDate() + offset); return date.toISOString().slice(0, 10); });
-    const daily = dates.map(date => { const items = results.filter(item => item.createdAt.toISOString().slice(0, 10) === date); return { date, total: items.length, passed: items.filter(x => x.status === RunStatus.PASSED).length, failed: items.filter(x => x.status === RunStatus.FAILED).length, blocked: items.filter(x => x.status === RunStatus.BLOCKED).length, duration: items.reduce((sum, x) => sum + (x.durationSeconds ?? 0), 0) }; });
+    const dates = Array.from({ length: query.days }, (_, offset) => { const date = new Date(since); date.setDate(date.getDate() + offset); return localDateKey(date); });
+    const daily = dates.map(date => { const items = results.filter(item => localDateKey(item.createdAt) === date); return { date, total: items.length, passed: items.filter(x => x.status === RunStatus.PASSED).length, failed: items.filter(x => x.status === RunStatus.FAILED).length, blocked: items.filter(x => x.status === RunStatus.BLOCKED).length, duration: items.reduce((sum, x) => sum + (x.durationSeconds ?? 0), 0) }; });
     const testers = users.map(user => { const items = results.filter(x => x.executedById === user.id); const passed = items.filter(x => x.status === RunStatus.PASSED).length; return { id: user.id, name: `${user.firstName} ${user.lastName}`.trim() || user.email, total: items.length, passed, failed: items.filter(x => x.status === RunStatus.FAILED).length, blocked: items.filter(x => x.status === RunStatus.BLOCKED).length, duration: items.reduce((sum, x) => sum + (x.durationSeconds ?? 0), 0), passRate: items.length ? Math.round(passed / items.length * 100) : 0 }; }).sort((a, b) => b.total - a.total);
     const caseHealth = this.caseHealth(typedResults);
     const runTrends = runs.map(run => { const executed = run.cases.filter(x => x.status !== RunStatus.NOT_RUN), passed = executed.filter(x => x.status === RunStatus.PASSED).length; return { id: run.id, name: run.name, projectCode: run.project.code, date: run.createdAt, total: run.cases.length, executed: executed.length, passRate: executed.length ? Math.round(passed / executed.length * 100) : 0 }; });
