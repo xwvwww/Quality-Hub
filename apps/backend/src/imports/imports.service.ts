@@ -37,8 +37,8 @@ export class ImportsService {
     return{valid:rows.length,invalid:errors.length,errors,imported:commit?rows.length:0,preview:rows.slice(0,20)};
   }
 
-  async export(org:string,projectId:string,format:'csv'|'xlsx'){
-    const{project,rows}=await this.exportRows(org,projectId);
+  async export(org:string,projectId:string,format:'csv'|'xlsx',folderId?:string,includeNested=false){
+    const{project,rows}=await this.exportRows(org,projectId,folderId,includeNested);
     if(format==='csv'){
       const text='\uFEFF'+[headers,...rows].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');
       return{name:`${project.code}-test-cases.csv`,mime:'text/csv; charset=utf-8',buffer:Buffer.from(text)};
@@ -53,14 +53,29 @@ export class ImportsService {
     return{mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await workbook.xlsx.writeBuffer())};
   }
 
-  private async exportRows(org:string,id:string){
+  private async exportRows(org:string,id:string,folderId?:string,includeNested=false){
     const project=await this.project(org,id);
-    const items=await this.prisma.testCase.findMany({where:{projectId:id},orderBy:{caseNumber:'asc'},include:{versions:{orderBy:{version:'desc'},take:1,include:{steps:{orderBy:[{section:'asc'},{position:'asc'}]}}}}});
+    let folderIds: string[] | undefined;
+    if(folderId){
+      const folder=await this.prisma.testCaseFolder.findFirst({where:{id:folderId,projectId:id},select:{id:true}});
+      if(!folder) throw new BadRequestException('Выбранная папка не принадлежит проекту');
+      folderIds=includeNested ? await this.descendantFolderIds(id,folderId) : [folderId];
+    }
+    const items=await this.prisma.testCase.findMany({where:{projectId:id,...(folderIds ? {folderId:{in:folderIds}} : {})},orderBy:{caseNumber:'asc'},include:{versions:{orderBy:{version:'desc'},take:1,include:{steps:{orderBy:[{section:'asc'},{position:'asc'}]}}}}});
     return{project,rows:items.map(item=>{
       const version=item.versions[0],steps=version?.steps??[];
       const values=(section:TestStepSection,key:'action'|'expectedResult')=>steps.filter(step=>step.section===section).map(step=>step[key]).join('\n');
       return[item.title,version?.description??'',item.status===TestCaseStatus.READY?'Готов':'Черновик',priorityNames[item.priority],item.type,this.duration(version?.durationSeconds??0),values(TestStepSection.PRECONDITION,'action'),values(TestStepSection.PRECONDITION,'expectedResult'),values(TestStepSection.ACTION,'action'),values(TestStepSection.ACTION,'expectedResult'),values(TestStepSection.POSTCONDITION,'action'),values(TestStepSection.POSTCONDITION,'expectedResult')];
     })};
+  }
+
+  private async descendantFolderIds(projectId:string,rootId:string){
+    const ids=[rootId];
+    for(let index=0;index<ids.length;index++){
+      const children=await this.prisma.testCaseFolder.findMany({where:{projectId,parentId:ids[index]},select:{id:true}});
+      ids.push(...children.map(child=>child.id));
+    }
+    return ids;
   }
 
   private book(rows:any[][]){

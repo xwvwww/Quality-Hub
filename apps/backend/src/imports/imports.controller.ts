@@ -31,8 +31,8 @@ export class ImportsController {
   }
 
   @Get('export')
-  async export(@Req() request: AuthRequest, @Param('projectId', ParseUUIDPipe) projectId: string, @Query('format') format: string, @Res() response: Response) {
-    const output = await this.service.export(request.user.organizationId, projectId, format === 'csv' ? 'csv' : 'xlsx');
+  async export(@Req() request: AuthRequest, @Param('projectId', ParseUUIDPipe) projectId: string, @Query('format') format: string, @Query('folderId') folderId: string | undefined, @Query('includeNested') includeNested: string | undefined, @Res() response: Response) {
+    const output = await this.service.export(request.user.organizationId, projectId, format === 'csv' ? 'csv' : 'xlsx', folderId, includeNested === 'true');
     response.setHeader('Content-Type', output.mime);
     response.setHeader('Content-Disposition', `attachment; filename="${output.name}"`);
     response.send(output.buffer);

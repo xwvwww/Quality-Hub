@@ -16,6 +16,7 @@ function save(blob: Blob, name: string) {
 export function ImportExportPanel() {
   const [open, setOpen] = useState(false), [projects, setProjects] = useState<Project[]>([]), [project, setProject] = useState("");
   const [folders, setFolders] = useState<FolderItem[]>([]), [folder, setFolder] = useState("");
+  const [exportFolder, setExportFolder] = useState(""), [includeNested, setIncludeNested] = useState(true);
   const [file, setFile] = useState<File | null>(null), [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const canEdit = ["ADMIN", "QA_LEAD", "QA_ENGINEER", "BUSINESS_ANALYST"].includes(session.get()?.user.role ?? "");
@@ -35,6 +36,7 @@ export function ImportExportPanel() {
     api<FolderItem[]>(`/projects/${project}/test-case-folders`).then((items) => {
       setFolders(items);
       setFolder((current) => items.some((item) => item.id === current) ? current : "");
+      setExportFolder((current) => items.some((item) => item.id === current) ? current : "");
     }).catch((reason) => setError(reason.message));
   }, [open, project]);
 
@@ -54,8 +56,14 @@ export function ImportExportPanel() {
   async function download(kind: "xlsx" | "csv" | "template") {
     if (!project) return;
     try {
-      const path = kind === "template" ? `/projects/${project}/test-cases/import-template` : `/projects/${project}/test-cases/export?format=${kind}`;
-      save(await apiBlob(path), kind === "template" ? "test-cases-template.xlsx" : `test-cases.${kind}`);
+      const params = new URLSearchParams({ format: kind });
+      if (exportFolder) {
+        params.set("folderId", exportFolder);
+        params.set("includeNested", String(includeNested));
+      }
+      const path = kind === "template" ? `/projects/${project}/test-cases/import-template` : `/projects/${project}/test-cases/export?${params}`;
+      const suffix = exportFolder ? "-folder" : "";
+      save(await apiBlob(path), kind === "template" ? "test-cases-template.xlsx" : `test-cases${suffix}.${kind}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Ошибка экспорта"); }
   }
   function folderPath(id: string) {
@@ -82,6 +90,15 @@ export function ImportExportPanel() {
         <option value="">Без папки</option>
         {folders.map((item) => <option key={item.id} value={item.id}>{folderPath(item.id)}</option>)}
       </select>
+      <label className="font-semibold text-sm block mb-2">Что экспортировать</label>
+      <select className="field mb-2" value={exportFolder} onChange={(event) => setExportFolder(event.target.value)}>
+        <option value="">Все тест-кейсы проекта</option>
+        {folders.map((item) => <option key={item.id} value={item.id}>{folderPath(item.id)}</option>)}
+      </select>
+      {exportFolder && <label className="flex items-center gap-2 text-sm text-muted mb-5">
+        <input type="checkbox" checked={includeNested} onChange={(event) => setIncludeNested(event.target.checked)} />
+        Включая тест-кейсы во вложенных папках
+      </label>}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <button className="btn-secondary flex gap-2 justify-center" onClick={() => download("template")}><Download size={17}/>Шаблон XLSX</button>
         <button className="btn-secondary" onClick={() => download("xlsx")}>Экспорт XLSX</button>
