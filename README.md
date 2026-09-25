@@ -87,6 +87,8 @@ corepack pnpm run db:migrate
 
 Настройте локальное окружение на основе `.env.example`.
 
+> `.env.example` содержит только локальные значения. Для alpha/production обязательно используйте secret manager, HTTPS, `COOKIE_SECURE=true`, `SWAGGER_ENABLED=false` и уникальные секреты. Не публикуйте PostgreSQL, Redis или MinIO во внешнюю сеть.
+
 ### Локальный запуск
 
 Запустите каждый сервис в отдельном терминале:
@@ -120,6 +122,7 @@ corepack pnpm audit --prod --audit-level high
 - [Локальная настройка и устранение проблем](START.md)
 - [Проприетарная лицензия](LICENSE)
 - [Quality Hub CI](.github/workflows/quality.yml)
+- [Инструкция по безопасному запуску](START.md#9-подготовка-к-alpha-и-production)
 
 ## Авторство
 

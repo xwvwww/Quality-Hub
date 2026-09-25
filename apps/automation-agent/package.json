@@ -1,0 +1,10 @@
+{
+  "name": "quality-hub-automation-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "help": "node src/index.mjs --help"
+  }
+}

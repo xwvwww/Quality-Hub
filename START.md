@@ -138,7 +138,59 @@ corepack pnpm run db:seed
 - Административный портал: `http://localhost:3001`
 - Backend API: `http://localhost:4000/api`
 
-## 7. Частые проблемы
+## 7. Quality Hub Automation Agent
+
+Agent выполняет queued-запуски Playwright или Selenium вне backend. Для запуска нужен API-ключ проекта из страницы `Интеграции`.
+
+В отдельном PowerShell:
+
+```powershell
+$env:QUALITY_HUB_API_KEY = "qh_..."
+corepack pnpm agent
+```
+
+По умолчанию Agent проверяет очередь каждые 5 секунд. Для одной проверки:
+
+```powershell
+$env:QUALITY_HUB_API_KEY = "qh_..."
+corepack pnpm agent -- --once
+```
+
+Если у проекта указан Repository URL, Agent временно клонирует выбранную ветку, выполняет команду suite и удаляет checkout после завершения. Если repository не указан, команда выполняется из текущей рабочей директории Agent.
+
+Дополнительные переменные:
+
+```powershell
+$env:QUALITY_HUB_API_URL = "http://localhost:4000/api"
+$env:QUALITY_HUB_POLL_MS = "5000"
+$env:QUALITY_HUB_WORKSPACE = "C:\qh-agent-workspaces"
+$env:QUALITY_HUB_WORKDIR = "C:\path\to\local\test-project"
+```
+
+`QUALITY_HUB_WORKDIR` используется, если у suite не указан Repository URL. Команда suite получает переменные `QUALITY_HUB_RUN_ID`, `QUALITY_HUB_PROJECT_ID`, `QUALITY_HUB_FRAMEWORK` и `QUALITY_HUB_ENVIRONMENT`.
+
+## 8. Частые проблемы
+
+## 9. Подготовка к alpha и production
+
+`.env.example` предназначен только для локальной разработки. Перед alpha/production:
+
+- используйте секреты из secret manager, а не значения из репозитория;
+- задайте `NODE_ENV=production`, `COOKIE_SECURE=true`, HTTPS для `FRONTEND_URL` и `SWAGGER_ENABLED=false`;
+- замените `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, пароли PostgreSQL и MinIO на уникальные случайные значения;
+- не публикуйте PostgreSQL, Redis и MinIO наружу; в compose они привязаны только к `127.0.0.1`;
+- ограничьте `TRUST_PROXY_HOPS` фактическим числом reverse proxy;
+- задавайте `QUALITY_HUB_DB_PASSWORD` при резервном копировании и восстановлении; backup-скрипты больше не используют пароль по умолчанию;
+- запускайте Agent под отдельным непривилегированным пользователем или в одноразовом контейнере с ограничением сети и файловой системы.
+
+Automation Agent дополнительно требует явный allowlist хостов репозиториев:
+
+```powershell
+$env:QUALITY_HUB_ALLOWED_REPOSITORY_HOSTS = "github.com"
+$env:QUALITY_HUB_ALLOWED_COMMANDS = "pnpm,npm,npx,pytest,mvn,gradle,node"
+```
+
+Agent не передаёт API key и остальные секреты Quality Hub в процесс теста, не использует shell-команды и завершает тест по таймауту. Это не заменяет контейнерную/VM-изоляцию: тестовый код всё равно является недоверенным кодом.
 
 ### `ECONNREFUSED 127.0.0.1:4000`
 

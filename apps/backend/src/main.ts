@@ -21,6 +21,12 @@ async function bootstrap() {
     if (process.env[name]!.length < 32) throw new Error(`${name} must contain at least 32 characters`);
     if (process.env.NODE_ENV === 'production' && process.env[name]!.startsWith('replace-with')) throw new Error(`${name} must be replaced before production startup`);
   }
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.COOKIE_SECURE !== 'true') throw new Error('COOKIE_SECURE=true is required in production');
+    if (!process.env.FRONTEND_URL?.startsWith('https://')) throw new Error('FRONTEND_URL must use HTTPS in production');
+    if (process.env.SWAGGER_ENABLED === 'true') throw new Error('SWAGGER_ENABLED must be false in production');
+    if (process.env.ALLOW_DEMO_SEED === 'true') throw new Error('ALLOW_DEMO_SEED=true is not allowed in production');
+  }
   app.setGlobalPrefix('api');
   const trustedProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
   if (Number.isInteger(trustedProxyHops) && trustedProxyHops > 0 && trustedProxyHops <= 5) app.getHttpAdapter().getInstance().set('trust proxy', trustedProxyHops);
