@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { AutomationFramework, AutomationRunStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestContext } from '../audit/request-context';
-import { CreateApiKeyDto, IngestAutomationDto } from './automation.dto';
+import { CreateApiKeyDto, CreateAutomationSuiteDto, IngestAutomationDto, UpdateAutomationRunDto } from './automation.dto';
 
 @Injectable()
 export class AutomationService {
@@ -32,6 +32,41 @@ export class AutomationService {
     return { accepted: created.length, projectId: key.projectId };
   }
   async results(organizationId: string, projectId?: string) { return this.prisma.automationResult.findMany({ where: { organizationId, ...(projectId ? { projectId } : {}) }, orderBy: { createdAt: 'desc' }, take: 200 }); }
+  async suites(organizationId: string, projectId?: string) {
+    return this.prisma.automationSuite.findMany({ where: { organizationId, ...(projectId ? { projectId } : {}) }, orderBy: { updatedAt: 'desc' }, include: { project: { select: { code: true, name: true } }, _count: { select: { runs: true } } } });
+  }
+  async createSuite(organizationId: string, userId: string, dto: CreateAutomationSuiteDto) {
+    const project = await this.prisma.project.findFirst({ where: { id: dto.projectId, organizationId } });
+    if (!project) throw new NotFoundException('Проект не найден');
+    return this.prisma.automationSuite.create({ data: { organizationId, projectId: dto.projectId, createdById: userId, name: dto.name.trim(), framework: dto.framework, command: dto.command.trim(), repository: dto.repository?.trim() || null, branch: dto.branch?.trim() || null, environment: dto.environment?.trim() || null }, include: { project: { select: { code: true, name: true } }, _count: { select: { runs: true } } } });
+  }
+  async trigger(organizationId: string, userId: string, suiteId: string) {
+    const suite = await this.prisma.automationSuite.findFirst({ where: { id: suiteId, organizationId, enabled: true } });
+    if (!suite) throw new NotFoundException('Automation suite не найден');
+    return this.prisma.automationRun.create({ data: { organizationId, projectId: suite.projectId, suiteId, requestedById: userId, framework: suite.framework, environment: suite.environment }, include: { suite: true } });
+  }
+  async runs(organizationId: string, projectId?: string) {
+    return this.prisma.automationRun.findMany({ where: { organizationId, ...(projectId ? { projectId } : {}) }, orderBy: { createdAt: 'desc' }, take: 100, include: { suite: { select: { name: true, framework: true } }, project: { select: { code: true, name: true } } } });
+  }
+  async claim(rawKey: string | undefined) {
+    const key = await this.authenticateKey(rawKey);
+    const run = await this.prisma.automationRun.findFirst({ where: { projectId: key.projectId, status: AutomationRunStatus.QUEUED }, orderBy: { createdAt: 'asc' }, include: { suite: true } });
+    if (!run) return null;
+    const claimed = await this.prisma.automationRun.updateMany({ where: { id: run.id, status: AutomationRunStatus.QUEUED }, data: { status: AutomationRunStatus.RUNNING, startedAt: new Date() } });
+    if (!claimed.count) return null;
+    await this.prisma.automationApiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } });
+    return this.prisma.automationRun.findUnique({ where: { id: run.id }, include: { suite: true } });
+  }
+  async updateRun(rawKey: string | undefined, runId: string, dto: UpdateAutomationRunDto) {
+    const key = await this.authenticateKey(rawKey);
+    const run = await this.prisma.automationRun.findFirst({ where: { id: runId, projectId: key.projectId } });
+    if (!run) throw new NotFoundException('Запуск не найден');
+    const finished = dto.status === AutomationRunStatus.PASSED
+      || dto.status === AutomationRunStatus.FAILED
+      || dto.status === AutomationRunStatus.CANCELLED;
+    await this.prisma.automationApiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } });
+    return this.prisma.automationRun.update({ where: { id: runId }, data: { ...dto, completedAt: finished ? new Date() : undefined }, include: { suite: true } });
+  }
   async authenticateKey(rawKey: string | undefined) {
     if (!rawKey) throw new UnauthorizedException('Передайте API-ключ в заголовке X-API-Key');
     const key = await this.prisma.automationApiKey.findUnique({ where: { keyHash: this.hash(rawKey) } });
