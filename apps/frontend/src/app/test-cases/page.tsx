@@ -12,6 +12,7 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
+  GripVertical,
   Library,
   Plus,
   Search,
@@ -105,6 +106,8 @@ export default function TestCasesPage() {
   const [folderParentId, setFolderParentId] = useState<string | undefined>();
   const [folderName, setFolderName] = useState("");
   const [folderSaving, setFolderSaving] = useState(false);
+  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [moveModal, setMoveModal] = useState(false);
   const [moveTarget, setMoveTarget] = useState("");
   const role = session.get()?.user.role;
@@ -220,7 +223,7 @@ export default function TestCasesPage() {
     }
   }
   async function deleteFolder(item: FolderItem) {
-    if (!confirm(`Удалить пустую папку «${item.name}»?`)) return;
+    if (!confirm(`Удалить папку «${item.name}»? Тест-кейсы из неё будут перемещены в родительскую папку.`)) return;
     try {
       await api(`/projects/${projectId}/test-case-folders/${item.id}`, {
         method: "DELETE",
@@ -230,6 +233,40 @@ export default function TestCasesPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка");
     }
+  }
+    async function reorderFolder(target: FolderItem) {
+      if (!draggedFolderId || draggedFolderId === target.id) return;
+      const dragged = folders.find((item) => item.id === draggedFolderId);
+      if (!dragged || dragged.parentId !== target.parentId) {
+        setError("Папки можно менять местами только внутри одного уровня");
+        return;
+      }
+      const siblings = folders
+        .filter((item) => item.parentId === target.parentId)
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+      const fromIndex = siblings.findIndex((item) => item.id === dragged.id);
+      const toIndex = siblings.findIndex((item) => item.id === target.id);
+      if (fromIndex < 0 || toIndex < 0) return;
+      const reordered = [...siblings];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      const changed = reordered.filter((item, index) => item.position !== index);
+      setFolders((current) => current.map((item) => {
+        const next = reordered.findIndex((candidate) => candidate.id === item.id);
+        return next >= 0 ? { ...item, position: next } : item;
+      }));
+      try {
+        await Promise.all(changed.map((item) => api(`/projects/${projectId}/test-case-folders/${item.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ position: reordered.findIndex((candidate) => candidate.id === item.id) }),
+        })));
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Не удалось сохранить порядок папок");
+        await loadFolders();
+      } finally {
+        setDraggedFolderId(null);
+        setDragOverFolderId(null);
+      }
   }
   async function createCase(event: FormEvent) {
     event.preventDefault();
@@ -360,13 +397,36 @@ export default function TestCasesPage() {
         {(children.get(parent) ?? []).map((item) => (
           <div key={item.id}>
             <div
-              className={`group flex items-center gap-2 py-2 px-2 rounded-lg cursor-pointer ${folderId === item.id ? "bg-indigo-50 text-brand" : "hover:bg-slate-50"}`}
+              draggable={canEdit}
+              onDragStart={(event) => {
+                if (!canEdit) return;
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", item.id);
+                setDraggedFolderId(item.id);
+              }}
+              onDragOver={(event) => {
+                if (!canEdit || !draggedFolderId || draggedFolderId === item.id) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDragOverFolderId(item.id);
+              }}
+              onDragLeave={() => setDragOverFolderId((current) => current === item.id ? null : current)}
+              onDrop={(event) => {
+                event.preventDefault();
+                void reorderFolder(item);
+              }}
+              onDragEnd={() => {
+                setDraggedFolderId(null);
+                setDragOverFolderId(null);
+              }}
+              className={`group flex items-center gap-2 py-2 px-2 rounded-lg cursor-pointer ${folderId === item.id ? "bg-indigo-50 text-brand" : "hover:bg-slate-50"} ${dragOverFolderId === item.id ? "ring-2 ring-brand/40 bg-indigo-50/70" : ""}`}
               style={{ paddingLeft: 8 + depth * 16 }}
               onClick={() => {
                 setFolderId(item.id);
                 setPage(1);
               }}
             >
+              {canEdit && <GripVertical size={14} className="text-muted cursor-grab shrink-0" aria-label="Перетащить папку" />}
               <Folder size={16} />
               <span className="flex-1 truncate text-sm">{item.name}</span>
               <span className="text-xs text-muted">

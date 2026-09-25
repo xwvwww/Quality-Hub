@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { TestCasesService } from './test-cases.service';
 import { MembershipRole, Priority, Severity, TestCaseStatus, TestType } from '@prisma/client';
 import { BulkAction } from './test-cases.dto';
@@ -41,15 +41,17 @@ describe('TestCasesService', () => {
     expect(prisma.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'project-b', organizationId: 'org-a' } }));
   });
 
-  it('does not delete a non-empty folder', async () => {
+  it('moves cases to the parent before deleting a folder', async () => {
     const prisma = {
       project: { findFirst: jest.fn().mockResolvedValue({ id: 'project-a', code: 'QA' }) },
-      testCaseFolder: { findFirst: jest.fn().mockResolvedValue({ id: 'folder-a' }), count: jest.fn().mockResolvedValue(1), delete: jest.fn() },
-      testCase: { count: jest.fn().mockResolvedValue(0) },
+      testCaseFolder: { findFirst: jest.fn().mockResolvedValue({ id: 'folder-a', parentId: 'parent-a' }), count: jest.fn().mockResolvedValue(0), delete: jest.fn() },
+      testCase: { updateMany: jest.fn() },
+      $transaction: jest.fn(),
     } as any;
     const service = new TestCasesService(prisma);
-    await expect(service.deleteFolder('org-a', 'project-a', 'admin-a', MembershipRole.ADMIN, 'folder-a')).rejects.toThrow(ConflictException);
-    expect(prisma.testCaseFolder.delete).not.toHaveBeenCalled();
+    await service.deleteFolder('org-a', 'project-a', 'admin-a', MembershipRole.ADMIN, 'folder-a');
+    expect(prisma.testCase.updateMany).toHaveBeenCalledWith({ where: { folderId: 'folder-a', projectId: 'project-a' }, data: { folderId: 'parent-a' } });
+    expect(prisma.testCaseFolder.delete).toHaveBeenCalledWith({ where: { id: 'folder-a' } });
   });
 
   it('returns a stable project-scoped display ID', async () => {
@@ -79,6 +81,7 @@ describe('TestCasesService', () => {
     } as any;
     const service = new TestCasesService(prisma);
     await service.bulk('org-a', 'project-a', 'lead-a', MembershipRole.QA_LEAD, { ids: ['case-2'], action: BulkAction.DELETE });
+    expect(tx.testCase.update).toHaveBeenCalledWith({ where: { id: 'case-3' }, data: { caseNumber: -2 } });
     expect(tx.testCase.update).toHaveBeenCalledWith({ where: { id: 'case-3' }, data: { caseNumber: 2 } });
     expect(tx.project.update).toHaveBeenCalledWith({ where: { id: 'project-a' }, data: { nextTestCaseNumber: 3 } });
   });

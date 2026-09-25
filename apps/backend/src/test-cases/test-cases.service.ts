@@ -173,13 +173,18 @@ export class TestCasesService {
   ) {
     await this.project(organizationId, projectId, userId, role);
     const current = await this.folder(projectId, id);
-    const [children, cases] = await Promise.all([
+    const [children] = await Promise.all([
       this.prisma.testCaseFolder.count({ where: { parentId: id } }),
-      this.prisma.testCase.count({ where: { folderId: id } }),
     ]);
-    if (children || cases)
-      throw new ConflictException("Удалить можно только пустую папку");
-    await this.prisma.testCaseFolder.delete({ where: { id: current.id } });
+    if (children)
+      throw new ConflictException("Сначала удалите или переместите вложенные папки");
+    await this.prisma.$transaction([
+      this.prisma.testCase.updateMany({
+        where: { folderId: current.id, projectId },
+        data: { folderId: current.parentId },
+      }),
+      this.prisma.testCaseFolder.delete({ where: { id: current.id } }),
+    ]);
     return { success: true };
   }
 
@@ -580,6 +585,11 @@ export class TestCasesService {
         await this.prisma.$transaction(async (tx) => {
           await tx.testCase.deleteMany({ where: { id: { in: dto.ids }, projectId } });
           const remaining = await tx.testCase.findMany({ where: { projectId }, orderBy: { caseNumber: "asc" }, select: { id: true, caseNumber: true } });
+          for (let index = 0; index < remaining.length; index++) {
+            const nextNumber = index + 1;
+            if (remaining[index].caseNumber !== nextNumber)
+              await tx.testCase.update({ where: { id: remaining[index].id }, data: { caseNumber: -(index + 1) } });
+          }
           for (let index = 0; index < remaining.length; index++) {
             const nextNumber = index + 1;
             if (remaining[index].caseNumber !== nextNumber)
